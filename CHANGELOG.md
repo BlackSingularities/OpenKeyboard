@@ -1,5 +1,14 @@
 # Zmiany
 
+## 1.2.0
+- **Płaska czarna klawiatura** – same znaki na czerni, bez pól i obramowań (także Enter i Shift; włączony Shift pokazuje kropka). Jednym dotknięciem w szybkich ustawieniach klawiatury.
+- **18 motywów**, w tym gradientowe (Ocean, Zachód, Zorza, Mgławica, Żar) i jasne (Mięta, Niebo, Brzoskwinia, Płaski jasny). Motyw dzienny i nocny przełączany z trybem ciemnym systemu, gradient we własnym motywie.
+- **Kształt klawiszy 3D** (z cieniem), rząd strzałek pod klawiszami, 5 rodzajów dźwięku klawiszy (systemowy, klik, miękki, maszyna do pisania, bańka).
+- **Zmiana rozmiaru przeciąganiem** – w szybkich ustawieniach „Rozmiar”: przeciągnij pasek, a klawisze rosną lub maleją na żywo.
+- **Statystyki**: tempo pisania (słowa na minutę), mapa cieplna klawiszy, najczęstsze słowa.
+- **Czytelniejsze ustawienia**: każda opcja ma opis, co robi, każda sekcja – krótkie wprowadzenie, a pasek u dołu przenosi od razu do wybranej sekcji.
+- Notatki o nowej wersji bez znaczników Markdown.
+
 ## 1.1.0
 - **Pisanie gestem** – przeciągnij palcem po literach słowa, ze śladem palca, kontekstem poprzedniego słowa i polskimi znakami bez przytrzymania („zolw” → „żółw”). Kolejny gest sam dodaje spację.
 - **Inteligencja**: wykrywanie języka, w którym właśnie piszesz (pierwszeństwo jego słów), nauka z cofniętych poprawek (Backspace po autokorekcie zapamiętuje Twoje słowo), poprawianie wielkości liter („i” → „I”).

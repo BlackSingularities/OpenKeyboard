@@ -24,6 +24,9 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.scale
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.positionInParent
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
@@ -34,19 +37,38 @@ import com.blacksingularities.openkeyboard.ui.theme.Palette
 import com.blacksingularities.openkeyboard.ui.theme.reactive
 import kotlin.math.roundToInt
 
-/** Nagłówek sekcji ustawień: ikona, nazwa i cienka linia do krawędzi. */
+/** Pozycje sekcji (do przewijania z paska skrótów u góry ustawień). */
+val LocalSectionAnchors = androidx.compose.runtime.staticCompositionLocalOf<MutableMap<String, Int>?> { null }
+
+/**
+ * Nagłówek sekcji ustawień: ikona, nazwa i cienka linia do krawędzi, pod spodem
+ * jedno zdanie wyjaśnienia, czego dotyczy sekcja.
+ */
 @Composable
-fun SectionHeader(icon: ImageVector, title: String) {
-    Row(Modifier.fillMaxWidth().padding(top = 14.dp, bottom = 2.dp, start = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-        Icon(icon, null, tint = Color.White, modifier = Modifier.size(18.dp))
-        Spacer(Modifier.width(8.dp))
-        Text(title, color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.Bold)
-        Spacer(Modifier.width(10.dp))
-        Box(Modifier.weight(1f).height(1.dp).background(Color.White.copy(alpha = 0.12f)))
+fun SectionHeader(icon: ImageVector, title: String, intro: String? = null) {
+    val anchors = LocalSectionAnchors.current
+    Column(
+        Modifier
+            .fillMaxWidth()
+            .then(
+                if (anchors != null) Modifier.onGloballyPositioned { anchors[title] = it.positionInParent().y.toInt() } else Modifier,
+            )
+            .padding(top = 18.dp, bottom = 2.dp, start = 4.dp),
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Icon(icon, null, tint = Color.White, modifier = Modifier.size(20.dp))
+            Spacer(Modifier.width(8.dp))
+            Text(title, color = Color.White, fontSize = 17.sp, fontWeight = FontWeight.Bold)
+            Spacer(Modifier.width(10.dp))
+            Box(Modifier.weight(1f).height(1.dp).background(Color.White.copy(alpha = 0.12f)))
+        }
+        if (intro != null) {
+            Text(intro, color = Palette.TextDim, fontSize = 12.sp, lineHeight = 16.sp, modifier = Modifier.padding(top = 4.dp, end = 4.dp))
+        }
     }
 }
 
-/** Kafelek-przełącznik: ikona i krótki podpis; pełny opis po przytrzymaniu. */
+/** Przełącznik ustawienia: ikona, nazwa i opis, co dokładnie robi. */
 class Tile(
     val icon: ImageVector,
     val short: String,
@@ -55,35 +77,46 @@ class Tile(
     val onChange: (Boolean) -> Unit,
 )
 
+/**
+ * Lista przełączników z pełnymi opisami – każdy wiersz mówi wprost, co włącza.
+ * Stan widać po przełączniku i po rozjaśnionej ikonie.
+ */
 @Composable
 fun TileGrid(tiles: List<Tile>) {
-    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-        tiles.chunked(4).forEach { row ->
-            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                row.forEach { t ->
-                    Column(
-                        Modifier
-                            .weight(1f)
-                            .reactive(t.full) { t.onChange(!t.value) }
-                            .clip(RoundedCornerShape(14.dp))
-                            .background(if (t.value) Color.White else Color.White.copy(alpha = 0.06f))
-                            .padding(vertical = 9.dp, horizontal = 2.dp),
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                    ) {
-                        Icon(t.icon, null, tint = if (t.value) Palette.Ink else Palette.TextDim, modifier = Modifier.size(20.dp))
-                        Text(
-                            t.short,
-                            fontSize = 10.sp,
-                            lineHeight = 12.sp,
-                            maxLines = 2,
-                            textAlign = TextAlign.Center,
-                            color = if (t.value) Palette.Ink else Palette.TextDim,
-                            fontWeight = if (t.value) FontWeight.SemiBold else FontWeight.Normal,
-                            modifier = Modifier.padding(top = 3.dp),
-                        )
-                    }
+    Column(
+        Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(16.dp))
+            .background(Color.White.copy(alpha = 0.06f))
+            .padding(vertical = 2.dp),
+    ) {
+        tiles.forEach { t ->
+            Row(
+                Modifier
+                    .fillMaxWidth()
+                    .reactive(null) { t.onChange(!t.value) }
+                    .padding(horizontal = 10.dp, vertical = 8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Box(
+                    Modifier
+                        .size(34.dp)
+                        .clip(RoundedCornerShape(50))
+                        .background(if (t.value) Color.White else Color.White.copy(alpha = 0.08f)),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Icon(t.icon, null, tint = if (t.value) Palette.Ink else Palette.TextDim, modifier = Modifier.size(18.dp))
                 }
-                repeat(4 - row.size) { Spacer(Modifier.weight(1f)) }
+                Column(Modifier.weight(1f).padding(horizontal = 12.dp)) {
+                    Text(t.short, fontSize = 14.sp, color = Color.White, fontWeight = FontWeight.Medium)
+                    Text(t.full, fontSize = 11.sp, color = Palette.TextDim, lineHeight = 14.sp)
+                }
+                androidx.compose.material3.Switch(
+                    checked = t.value,
+                    onCheckedChange = { t.onChange(it) },
+                    modifier = Modifier.scale(0.82f),
+                    colors = androidx.compose.material3.SwitchDefaults.colors(checkedTrackColor = Palette.Amber, checkedThumbColor = Palette.Ink),
+                )
             }
         }
     }

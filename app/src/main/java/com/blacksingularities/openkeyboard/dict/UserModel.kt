@@ -24,6 +24,10 @@ data class Stats(
     val suggestionsPicked: Long = 0,
     val charsSaved: Long = 0,
     val emojis: Long = 0,
+    /** Czas aktywnego pisania (przerwy powyżej kilku sekund się nie liczą). */
+    val typingMs: Long = 0,
+    /** Naciśnięcia poszczególnych liter – mapa cieplna klawiatury. */
+    val keyTaps: Map<String, Long> = emptyMap(),
 )
 
 @Serializable

@@ -55,7 +55,7 @@ import kotlin.math.hypot
 enum class ShiftState { OFF, ONESHOT, LOCKED }
 
 /** Co pokazuje klawiatura pod paskiem podpowiedzi. */
-enum class Panel { KEYS, EMOJI, CLIPBOARD, EDIT, TEXT, VOICE, LANGUAGES, QUICK }
+enum class Panel { KEYS, EMOJI, CLIPBOARD, EDIT, TEXT, VOICE, LANGUAGES, QUICK, RESIZE }
 
 /** Pisanie do pola w samej klawiaturze (wyszukiwanie emoji, tłumacz) zamiast do aplikacji. */
 enum class InternalTarget { EMOJI_SEARCH, TRANSLATE }
@@ -109,6 +109,7 @@ class KeyboardController(val service: OpenKeyboardService) {
     private val recentWords = ArrayDeque<String>()
     /** Słowo wpisane gestem czeka w polu – następny gest albo litera doda przed sobą spację. */
     private var glidePending = false
+    private var lastTypeTime = 0L
 
     private var editorInfo: EditorInfo? = null
     private val composing = StringBuilder()
@@ -353,7 +354,19 @@ class KeyboardController(val service: OpenKeyboardService) {
             lastCorrection = null
             selfEdit()
         }
-        if (!incognito) UserModel.bumpStats { it.copy(chars = it.chars + text.length) }
+        if (!incognito) {
+            val now = SystemClock.uptimeMillis()
+            val dt = now - lastTypeTime
+            lastTypeTime = now
+            val key = text.lowercase()
+            UserModel.bumpStats {
+                it.copy(
+                    chars = it.chars + text.length,
+                    typingMs = it.typingMs + if (dt in 1..4000) dt else 0,
+                    keyTaps = if (text.length == 1 && text[0].isLetter()) it.keyTaps + (key to ((it.keyTaps[key] ?: 0L) + 1)) else it.keyTaps,
+                )
+            }
+        }
         if (shift == ShiftState.ONESHOT) shift = ShiftState.OFF
         if (!wordChar) updateAutoShift()
         // Po symbolu typu apostrof w trybie symboli – powrót do liter jak w Gboard.

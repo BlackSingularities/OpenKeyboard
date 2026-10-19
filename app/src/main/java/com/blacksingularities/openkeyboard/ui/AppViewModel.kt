@@ -32,7 +32,7 @@ import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.jsonObject
 
 /** Arkusze otwierane nad ekranem ustawień. */
-enum class Sheet { LANGUAGES, THEME, DICTIONARY, SHORTCUTS, TOOLBAR, ABOUT, GESTURES }
+enum class Sheet { LANGUAGES, THEME, DICTIONARY, SHORTCUTS, TOOLBAR, ABOUT, GESTURES, STATS }
 
 class AppViewModel(app: Application) : AndroidViewModel(app) {
     private val ctx: Context get() = getApplication()

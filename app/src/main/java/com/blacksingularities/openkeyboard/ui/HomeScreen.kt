@@ -92,6 +92,13 @@ import com.blacksingularities.openkeyboard.data.KeyboardSettings
 import com.blacksingularities.openkeyboard.data.Languages
 import com.blacksingularities.openkeyboard.data.OneHanded
 import com.blacksingularities.openkeyboard.data.SplitMode
+import com.blacksingularities.openkeyboard.data.KeyStyle
+import com.blacksingularities.openkeyboard.data.KeySound
+import com.blacksingularities.openkeyboard.ui.components.LocalSectionAnchors
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.rememberCoroutineScope
+import kotlinx.coroutines.launch
 import androidx.compose.material.icons.rounded.Gesture
 import androidx.compose.material.icons.rounded.Draw
 import androidx.compose.material.icons.rounded.FormatQuote
@@ -126,6 +133,7 @@ fun AppRoot(vm: AppViewModel) {
             Sheet.TOOLBAR -> ToolbarSheet(vm)
             Sheet.ABOUT -> AboutSheet(vm)
             Sheet.GESTURES -> GesturesSheet(vm)
+            Sheet.STATS -> StatsSheet(vm)
             null -> {}
         }
         val msg = vm.message
@@ -151,23 +159,53 @@ fun AppRoot(vm: AppViewModel) {
 
 @Composable
 private fun HomeScreen(vm: AppViewModel) {
-    Column(
-        Modifier
-            .fillMaxSize()
-            .windowInsetsPadding(WindowInsets.safeDrawing)
-            .imePadding()
-            .verticalScroll(rememberScrollState())
-            .padding(horizontal = 14.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-    ) {
-        Column(Modifier.widthIn(max = 720.dp).fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Header(vm)
-            UpdateBanner(vm)
-            SetupCard(vm)
-            TryField()
-            Stats()
-            SettingsContent(vm)
-            Spacer(Modifier.height(24.dp))
+    val scroll = rememberScrollState()
+    val anchors = remember { mutableMapOf<String, Int>() }
+    val scope = rememberCoroutineScope()
+    Column(Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.safeDrawing).imePadding()) {
+        Column(
+            Modifier
+                .weight(1f)
+                .fillMaxWidth()
+                .verticalScroll(scroll)
+                .padding(horizontal = 14.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
+            CompositionLocalProvider(LocalSectionAnchors provides anchors) {
+                Column(Modifier.widthIn(max = 720.dp).fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Header(vm)
+                    UpdateBanner(vm)
+                    SetupCard(vm)
+                    TryField()
+                    Stats(vm)
+                    SettingsContent(vm)
+                    Spacer(Modifier.height(24.dp))
+                }
+            }
+        }
+        // Skróty do sekcji – szybkie przejście bez przewijania całej listy.
+        Row(
+            Modifier
+                .fillMaxWidth()
+                .background(Palette.Ink)
+                .horizontalScroll(rememberScrollState())
+                .padding(horizontal = 10.dp, vertical = 8.dp),
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+        ) {
+            for (title in listOf(tr("Języki"), tr("Pisanie i podpowiedzi"), tr("Wygląd"), tr("Układ"), tr("Dotyk i dźwięk"), tr("Narzędzia"), tr("Kopia zapasowa"), tr("Ogólne"))) {
+                Text(
+                    title,
+                    color = Color.White,
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    maxLines = 1,
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(50))
+                        .background(Color.White.copy(alpha = 0.1f))
+                        .clickable { anchors[title]?.let { y -> scope.launch { scroll.animateScrollTo(y) } } }
+                        .padding(horizontal = 12.dp, vertical = 7.dp),
+                )
+            }
         }
     }
 }
@@ -230,10 +268,10 @@ private fun TryField() {
 }
 
 @Composable
-private fun Stats() {
+private fun Stats(vm: AppViewModel) {
     val st by UserModel.stats.collectAsState()
     if (st.words == 0L) return
-    Row(Modifier.fillMaxWidth().padding(top = 4.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+    Row(Modifier.fillMaxWidth().padding(top = 4.dp).clickable { vm.sheet = Sheet.STATS }, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
         StatTile(compact(st.words), tr("słów"), Modifier.weight(1f))
         StatTile(compact(st.corrections), tr("poprawek"), Modifier.weight(1f))
         StatTile(compact(st.charsSaved), tr("znaków zaoszczędzonych"), Modifier.weight(1f))
@@ -254,7 +292,7 @@ private fun ColumnScope.SettingsContent(vm: AppViewModel) {
     fun set(t: (KeyboardSettings) -> KeyboardSettings) = vm.update(t)
     var confirm by remember { mutableStateOf<Pair<String, () -> Unit>?>(null) }
 
-    SectionHeader(Icons.Rounded.Language, tr("Języki"))
+    SectionHeader(Icons.Rounded.Language, tr("Języki"), tr("W jakich językach piszesz. Podpowiedzi mogą działać we wszystkich naraz – bez przełączania klawiatury."))
     Group(null) {
         ActionRow(
             Icons.Rounded.Language,
@@ -271,7 +309,7 @@ private fun ColumnScope.SettingsContent(vm: AppViewModel) {
         ),
     )
 
-    SectionHeader(Icons.Rounded.Psychology, tr("Pisanie i podpowiedzi"))
+    SectionHeader(Icons.Rounded.Psychology, tr("Pisanie i podpowiedzi"), tr("Jak klawiatura pomaga pisać: poprawia literówki, podpowiada słowa, uczy się Twojego stylu."))
     Group(null) {
         CompactChoice(
             Icons.Rounded.AutoFixHigh,
@@ -323,9 +361,24 @@ private fun ColumnScope.SettingsContent(vm: AppViewModel) {
         ActionRow(Icons.AutoMirrored.Rounded.Shortcut, tr("Skróty tekstowe"), tr("{0} skrótów", shortcuts.size)) { vm.sheet = Sheet.SHORTCUTS }
     }
 
-    SectionHeader(Icons.Rounded.Palette, tr("Wygląd"))
+    SectionHeader(Icons.Rounded.Palette, tr("Wygląd"), tr("Kolory, kształt klawiszy i to, co na nich widać. Zmiany widać od razu w podglądzie motywu."))
     Group(null) {
-        ActionRow(Icons.Rounded.Palette, tr("Motyw, kolory i klawisze"), tr("Podgląd na żywo, 7 motywów, 10 akcentów, kształt klawiszy")) { vm.sheet = Sheet.THEME }
+        ActionRow(Icons.Rounded.Palette, tr("Motywy i kolory"), tr("18 motywów (w tym płaski czarny bez obramowań), własne kolory i gradient, obraz w tle, motyw dzienny i nocny – z podglądem na żywo")) { vm.sheet = Sheet.THEME }
+        CompactChoice(
+            Icons.Rounded.Tune,
+            tr("Kształt klawiszy"),
+            KeyStyle.entries,
+            s.keyStyle,
+            {
+                when (it) {
+                    KeyStyle.FILLED -> tr("Wypełnione – każdy klawisz to osobne pole")
+                    KeyStyle.OUTLINE -> tr("Z obwódką – cienka linia dookoła klawisza")
+                    KeyStyle.FLAT -> tr("Płaskie – same znaki, bez pól i obramowań")
+                    KeyStyle.RAISED -> tr("3D – klawisze z cieniem pod spodem")
+                }
+            },
+            short = { when (it) { KeyStyle.FILLED -> tr("Pełne"); KeyStyle.OUTLINE -> tr("Obrys"); KeyStyle.FLAT -> tr("Płaskie"); KeyStyle.RAISED -> "3D" } },
+        ) { v -> set { it.copy(keyStyle = v) } }
     }
     TileGrid(
         listOf(
@@ -335,7 +388,7 @@ private fun ColumnScope.SettingsContent(vm: AppViewModel) {
         ),
     )
 
-    SectionHeader(Icons.Rounded.Keyboard, tr("Układ"))
+    SectionHeader(Icons.Rounded.Keyboard, tr("Układ"), tr("Jakie klawisze są na klawiaturze, jej rozmiar i położenie na ekranie."))
     Group(null) {
         CompactChoice(
             Icons.Rounded.VerticalSplit,
@@ -350,6 +403,7 @@ private fun ColumnScope.SettingsContent(vm: AppViewModel) {
     TileGrid(
         listOf(
             Tile(Icons.Rounded.Dialpad, tr("Rząd cyfr"), tr("Stały rząd cyfr nad literami"), s.numberRow) { v -> set { it.copy(numberRow = v) } },
+            Tile(Icons.Rounded.OpenWith, tr("Rząd strzałek"), tr("Strzałki ← ↑ ↓ → pod klawiszami do precyzyjnego przesuwania kursora"), s.arrowRow) { v -> set { it.copy(arrowRow = v) } },
             Tile(Icons.Rounded.Abc, tr("Przecinek"), tr("Klawisz przecinka obok spacji"), s.commaKey) { v -> set { it.copy(commaKey = v) } },
             Tile(Icons.Rounded.EmojiEmotions, tr("Klawisz emoji"), tr("Przycisk emoji obok spacji (emoji są też pod przytrzymaniem Enter)"), s.emojiKey) { v -> set { it.copy(emojiKey = v) } },
             Tile(Icons.Rounded.PictureInPicture, tr("Pływająca"), tr("Klawiatura jako przesuwana nakładka nad aplikacją"), s.floating) { v -> set { it.copy(floating = v) } },
@@ -371,11 +425,11 @@ private fun ColumnScope.SettingsContent(vm: AppViewModel) {
         SliderRow(Icons.Rounded.Timer, tr("Czas przytrzymania"), s.longPressMs, 150..700, 10, { "$it ms" }) { v -> set { it.copy(longPressMs = v) } }
     }
 
-    SectionHeader(Icons.Rounded.TouchApp, tr("Dotyk i dźwięk"))
+    SectionHeader(Icons.Rounded.TouchApp, tr("Dotyk i dźwięk"), tr("Wibracja, dźwięk klawiszy oraz gesty palcem – i co mają robić."))
     TileGrid(
         listOf(
             Tile(Icons.Rounded.Vibration, tr("Wibracja"), tr("Delikatna wibracja przy każdym klawiszu"), s.haptics) { v -> set { it.copy(haptics = v) } },
-            Tile(Icons.Rounded.VolumeUp, tr("Dźwięk"), tr("Dźwięk systemowy przy naciśnięciu klawisza"), s.sound) { v -> set { it.copy(sound = v) } },
+            Tile(Icons.Rounded.VolumeUp, tr("Dźwięk"), tr("Dźwięk przy naciśnięciu klawisza – rodzaj wybierzesz niżej"), s.sound) { v -> set { it.copy(sound = v) } },
             Tile(Icons.AutoMirrored.Rounded.Backspace, tr("Usuwanie gestem"), tr("Przesuń palec w lewo z Backspace, aby zaznaczyć i usunąć całe słowa"), s.deleteSwipe) { v -> set { it.copy(deleteSwipe = v) } },
         ),
     )
@@ -383,9 +437,25 @@ private fun ColumnScope.SettingsContent(vm: AppViewModel) {
         ActionRow(Icons.Rounded.Gesture, tr("Gesty"), tr("Spacja w bok i w górę, przytrzymania, przeciągnięcie w dół – przypisz własne czynności")) { vm.sheet = Sheet.GESTURES }
         SliderRow(Icons.Rounded.Vibration, tr("Siła wibracji"), s.hapticStrength, 1..100, 1, { "$it%" }) { v -> set { it.copy(hapticStrength = v) } }
         SliderRow(Icons.Rounded.VolumeUp, tr("Głośność klawiszy"), s.soundVolume, 1..100, 1, { "$it%" }) { v -> set { it.copy(soundVolume = v) } }
+        CompactChoice(
+            Icons.Rounded.VolumeUp,
+            tr("Rodzaj dźwięku"),
+            KeySound.entries,
+            s.keySound,
+            {
+                when (it) {
+                    KeySound.SYSTEM -> tr("Systemowy – dźwięk klawiatury telefonu")
+                    KeySound.CLICK -> tr("Klik – krótki i suchy")
+                    KeySound.SOFT -> tr("Miękki – ciche „puk”")
+                    KeySound.TYPEWRITER -> tr("Maszyna do pisania")
+                    KeySound.BUBBLE -> tr("Bańka – wesoły, rosnący ton")
+                }
+            },
+            short = { when (it) { KeySound.SYSTEM -> "Sys"; KeySound.CLICK -> "Klik"; KeySound.SOFT -> tr("Miękki"); KeySound.TYPEWRITER -> "⌨"; KeySound.BUBBLE -> "○" } },
+        ) { v -> set { it.copy(keySound = v, sound = true) } }
     }
 
-    SectionHeader(Icons.Rounded.Widgets, tr("Narzędzia"))
+    SectionHeader(Icons.Rounded.Widgets, tr("Narzędzia"), tr("Pasek narzędzi nad klawiszami, schowek i prywatność."))
     Group(null) {
         ActionRow(Icons.Rounded.Tune, tr("Pasek narzędzi"), tr("Kolejność i widoczność przycisków nad klawiaturą")) { vm.sheet = Sheet.TOOLBAR }
     }
@@ -404,10 +474,11 @@ private fun ColumnScope.SettingsContent(vm: AppViewModel) {
         }
     }
 
-    SectionHeader(Icons.Rounded.Backup, tr("Kopia zapasowa"))
+    SectionHeader(Icons.Rounded.Backup, tr("Kopia zapasowa"), tr("Przenieś ustawienia i wyuczone słowa na inny telefon albo zacznij od nowa."))
     Group(null) {
         ActionRow(Icons.Rounded.Backup, tr("Eksportuj"), tr("Ustawienia, wyuczone słowa, skróty i przypięte wpisy schowka do pliku JSON")) { sys.exportBackup() }
         ActionRow(Icons.Rounded.Restore, tr("Importuj"), tr("Przywróć z pliku kopii")) { sys.importBackup() }
+        ActionRow(Icons.Rounded.BarChart, tr("Statystyki i mapa cieplna"), tr("Tempo pisania, najczęstsze słowa i które klawisze naciskasz najczęściej")) { vm.sheet = Sheet.STATS }
         ActionRow(Icons.Rounded.BarChart, tr("Zeruj statystyki"), null) {
             confirm = tr("Wyzerować statystyki pisania?") to { UserModel.resetStats() }
         }
@@ -419,7 +490,7 @@ private fun ColumnScope.SettingsContent(vm: AppViewModel) {
         }
     }
 
-    SectionHeader(Icons.Rounded.Settings, tr("Ogólne"))
+    SectionHeader(Icons.Rounded.Settings, tr("Ogólne"), tr("Język aplikacji, aktualizacje z GitHuba i informacje o aplikacji."))
     Group(null) {
         CompactChoice(
             Icons.Rounded.Language,

@@ -68,6 +68,7 @@ import androidx.compose.material.icons.rounded.Contrast
 import androidx.compose.material.icons.rounded.Opacity
 import androidx.compose.material.icons.rounded.FontDownload
 import androidx.compose.material.icons.rounded.Palette
+import androidx.compose.material.icons.rounded.Gradient
 import com.blacksingularities.openkeyboard.data.KeyboardSettings
 import com.blacksingularities.openkeyboard.data.Languages
 import com.blacksingularities.openkeyboard.data.ToolbarItem
@@ -237,10 +238,11 @@ private fun IconBtn(icon: ImageVector, label: String, enabled: Boolean = true, o
 /** Podgląd klawiatury z bieżącymi ustawieniami (bez dotyku). */
 @Composable
 fun KeyboardPreview(s: KeyboardSettings) {
-    val colors = KeyboardThemes.colors(s)
+    val colors = KeyboardThemes.colors(s, androidx.compose.foundation.isSystemInDarkTheme())
     val layout = remember(s) { Layouts.build(KeyboardMode.ALPHA, Languages.get(s.activeLanguage), s, FieldKind.TEXT, s.languages.size) }
     CompositionLocalProvider(androidx.compose.material3.LocalContentColor provides colors.text) {
-        Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(colors.background).padding(bottom = 6.dp)) {
+        val bgMod = colors.background2?.let { Modifier.background(androidx.compose.ui.graphics.Brush.verticalGradient(listOf(colors.background, it))) } ?: Modifier.background(colors.background)
+        Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).then(bgMod).padding(bottom = 6.dp)) {
             Row(Modifier.fillMaxWidth().height(40.dp), verticalAlignment = Alignment.CenterVertically) {
                 listOf(tr("cześć"), tr("dzień"), tr("dobry")).forEachIndexed { i, w ->
                     Text(
@@ -276,7 +278,7 @@ fun ThemeSheet(vm: AppViewModel) {
                         Modifier
                             .clip(RoundedCornerShape(14.dp))
                             .background(if (sel) Color.White else Color.White.copy(alpha = 0.06f))
-                            .clickable { set { it.copy(theme = p.id) } }
+                            .clickable { set { it.copy(theme = p.id, autoDayNight = false) } }
                             .padding(8.dp),
                         horizontalAlignment = Alignment.CenterHorizontally,
                     ) {
@@ -297,6 +299,7 @@ fun ThemeSheet(vm: AppViewModel) {
                 }
             }
         }
+        DayNightSection(vm)
         CustomThemeSection(vm)
         Group(tr("Kolor akcentu")) {
             Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(10.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -322,8 +325,8 @@ fun ThemeSheet(vm: AppViewModel) {
                 tr("Klawisze"),
                 KeyStyle.entries,
                 s.keyStyle,
-                { when (it) { KeyStyle.FILLED -> tr("Wypełnione"); KeyStyle.OUTLINE -> tr("Z obwódką"); KeyStyle.FLAT -> tr("Same znaki (minimalistyczne)") } },
-                short = { when (it) { KeyStyle.FILLED -> tr("Pełne"); KeyStyle.OUTLINE -> tr("Obrys"); KeyStyle.FLAT -> tr("Płaskie") } },
+                { when (it) { KeyStyle.FILLED -> tr("Wypełnione"); KeyStyle.OUTLINE -> tr("Z obwódką"); KeyStyle.FLAT -> tr("Same znaki (minimalistyczne)"); KeyStyle.RAISED -> tr("3D – klawisze z cieniem pod spodem") } },
+                short = { when (it) { KeyStyle.FILLED -> tr("Pełne"); KeyStyle.OUTLINE -> tr("Obrys"); KeyStyle.FLAT -> tr("Płaskie"); KeyStyle.RAISED -> "3D" } },
             ) { v -> set { it.copy(keyStyle = v) } }
             SliderRow(Icons.Rounded.RoundedCorner, tr("Zaokrąglenie"), s.keyRadius, 0..24) { v -> set { it.copy(keyRadius = v) } }
             SliderRow(Icons.Rounded.SpaceBar, tr("Odstęp między klawiszami"), s.keyGap, 0..12) { v -> set { it.copy(keyGap = v) } }
@@ -706,6 +709,37 @@ fun CustomThemeSection(vm: AppViewModel) {
             SliderRow(Icons.Rounded.Contrast, tr("Przyciemnienie obrazu"), s.bgDim, 0..90, 1, { "$it%" }) { v -> vm.update { it.copy(bgDim = v) } }
             ActionRow(Icons.Rounded.Delete, tr("Usuń obraz tła"), null, danger = true) { vm.update { it.copy(bgImage = false) } }
         }
+        if (s.theme == "custom") {
+            Row(Modifier.fillMaxWidth().padding(horizontal = 10.dp, vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
+                RowIcon(Icons.Rounded.Gradient)
+                Column(Modifier.weight(1f).padding(horizontal = 12.dp)) {
+                    Text(tr("Gradient tła"), fontSize = 14.sp)
+                    Text(tr("Tło przechodzi od koloru „Tło” do drugiego koloru u dołu"), fontSize = 11.sp, color = Palette.TextDim)
+                }
+                Switch(
+                    checked = s.customGradient,
+                    onCheckedChange = { v -> vm.update { it.copy(customGradient = v) } },
+                    modifier = Modifier.scale(0.82f),
+                    colors = SwitchDefaults.colors(checkedTrackColor = Palette.Amber, checkedThumbColor = Palette.Ink),
+                )
+            }
+            if (s.customGradient) {
+                Row(Modifier.padding(horizontal = 10.dp, vertical = 4.dp).horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    for (sw in listOf(0xFF1A1033, 0xFF2A0B23, 0xFF011522, 0xFF3D0F05, 0xFF0B3D2E, 0xFF000000, 0xFF4A1942, 0xFF14213D, 0xFF8A2A1D, 0xFFE9C46A, 0xFF64B5F6, 0xFFFFFFFF)) {
+                        Box(
+                            Modifier
+                                .size(28.dp)
+                                .clip(CircleShape)
+                                .background(if (sw == s.customBg2) Color.White else Color.White.copy(alpha = 0.15f))
+                                .clickable { vm.update { it.copy(customBg2 = sw) } }
+                                .padding(3.dp)
+                                .clip(CircleShape)
+                                .background(Color(sw.toInt())),
+                        )
+                    }
+                }
+            }
+        }
         SliderRow(Icons.Rounded.Opacity, tr("Krycie klawiszy"), s.keyOpacity, 0..100, 5, { "$it%" }) { v -> vm.update { it.copy(keyOpacity = v) } }
     }
     Group(null) {
@@ -741,4 +775,129 @@ private fun slotColor(s: KeyboardSettings, sl: ColorSlot): Long = when (sl) {
     ColorSlot.KEY -> s.customKey
     ColorSlot.TEXT -> s.customText
     ColorSlot.ACCENT -> s.customAccent
+}
+
+// ───────────────────────── statystyki ─────────────────────────
+
+/**
+ * Statystyki pisania: tempo (słowa na minutę aktywnego pisania), liczby, najczęstsze słowa
+ * i mapa cieplna – im jaśniejszy klawisz, tym częściej go naciskasz.
+ */
+@Composable
+fun StatsSheet(vm: AppViewModel) {
+    val st by UserModel.stats.collectAsState()
+    val version by UserModel.version.collectAsState()
+    val top = remember(version) { UserModel.allWords().take(12) }
+    val s = vm.settings
+    Panel(tr("Statystyki"), onClose = { vm.sheet = null }) {
+        val minutes = st.typingMs / 60_000.0
+        val wpm = if (minutes > 0.2) (st.words / minutes).toInt() else 0
+        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            com.blacksingularities.openkeyboard.ui.components.StatTile(if (wpm > 0) wpm.toString() else "—", tr("słów na minutę"), Modifier.weight(1f))
+            com.blacksingularities.openkeyboard.ui.components.StatTile(st.words.toString(), tr("słów"), Modifier.weight(1f))
+            com.blacksingularities.openkeyboard.ui.components.StatTile(st.corrections.toString(), tr("poprawek"), Modifier.weight(1f))
+        }
+        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            com.blacksingularities.openkeyboard.ui.components.StatTile(st.charsSaved.toString(), tr("znaków zaoszczędzonych"), Modifier.weight(1f))
+            com.blacksingularities.openkeyboard.ui.components.StatTile(st.suggestionsPicked.toString(), tr("wybranych podpowiedzi"), Modifier.weight(1f))
+            com.blacksingularities.openkeyboard.ui.components.StatTile(st.emojis.toString(), tr("emoji"), Modifier.weight(1f))
+        }
+        Group(tr("Mapa cieplna klawiszy")) {
+            val layout = remember(s.activeLanguage, s.layoutOverride) {
+                Layouts.build(KeyboardMode.ALPHA, Languages.get(s.activeLanguage), s.copy(numberRow = false), FieldKind.TEXT, 1)
+            }
+            val max = (st.keyTaps.values.maxOrNull() ?: 0L).coerceAtLeast(1L)
+            Column(Modifier.fillMaxWidth().padding(8.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                for (row in layout.rows.take(3)) {
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(4.dp, Alignment.CenterHorizontally)) {
+                        for (k in row) {
+                            if (k.type != com.blacksingularities.openkeyboard.keyboard.KeyType.CHAR) continue
+                            val n = st.keyTaps[k.text.lowercase()] ?: 0L
+                            val heat = (n.toFloat() / max).coerceIn(0f, 1f)
+                            Column(
+                                Modifier
+                                    .weight(1f, fill = false)
+                                    .size(width = 30.dp, height = 40.dp)
+                                    .clip(RoundedCornerShape(6.dp))
+                                    .background(heatColor(heat)),
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                verticalArrangement = Arrangement.Center,
+                            ) {
+                                Text(k.text, fontSize = 13.sp, fontWeight = FontWeight.Bold, color = if (heat > 0.55f) Palette.Ink else Color.White)
+                                if (n > 0) Text(compactCount(n), fontSize = 8.sp, color = if (heat > 0.55f) Palette.Ink else Palette.TextDim)
+                            }
+                        }
+                    }
+                }
+            }
+            Text(
+                tr("Liczone są litery wpisane na klawiaturze (nie w trybie incognito)."),
+                color = Palette.TextDim,
+                fontSize = 11.sp,
+                modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+            )
+        }
+        Group(tr("Twoje najczęstsze słowa")) {
+            if (top.isEmpty()) Text(tr("Brak słów – pisz, a klawiatura sama się nauczy."), color = Palette.TextDim, fontSize = 12.sp, modifier = Modifier.padding(14.dp))
+            val maxW = (top.firstOrNull()?.second ?: 1).coerceAtLeast(1)
+            for ((w, n) in top) {
+                Row(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Text(w, fontSize = 13.sp, modifier = Modifier.width(110.dp), maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    Box(Modifier.weight(1f).height(8.dp).clip(RoundedCornerShape(50)).background(Color.White.copy(alpha = 0.08f))) {
+                        Box(Modifier.fillMaxWidth(n.toFloat() / maxW).height(8.dp).clip(RoundedCornerShape(50)).background(Color.White))
+                    }
+                    Text("×$n", fontSize = 11.sp, color = Palette.TextDim, modifier = Modifier.padding(start = 8.dp))
+                }
+            }
+        }
+        Spacer(Modifier.height(12.dp))
+    }
+}
+
+private fun heatColor(t: Float): Color {
+    if (t <= 0f) return Color.White.copy(alpha = 0.06f)
+    // Od ciemnego granatu przez pomarańcz do bieli.
+    val stops = listOf(Color(0xFF1B2A4A), Color(0xFF7B2D8E), Color(0xFFE8613C), Color(0xFFFFD166), Color(0xFFFFFFFF))
+    val x = t * (stops.size - 1)
+    val i = x.toInt().coerceAtMost(stops.size - 2)
+    val f = x - i
+    val a = stops[i]
+    val b = stops[i + 1]
+    return Color(a.red + (b.red - a.red) * f, a.green + (b.green - a.green) * f, a.blue + (b.blue - a.blue) * f)
+}
+
+private fun compactCount(n: Long): String = if (n >= 1000) "${n / 1000}k" else n.toString()
+
+// ───────────────────────── motyw dzienny i nocny ─────────────────────────
+
+@Composable
+fun DayNightSection(vm: AppViewModel) {
+    val s = vm.settings
+    Group(tr("Dzień i noc")) {
+        Row(Modifier.fillMaxWidth().padding(horizontal = 10.dp, vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
+            RowIcon(Icons.Rounded.Contrast)
+            Column(Modifier.weight(1f).padding(horizontal = 12.dp)) {
+                Text(tr("Przełączaj motyw z systemem"), fontSize = 14.sp)
+                Text(tr("Gdy telefon jest w trybie ciemnym – motyw nocny, w jasnym – dzienny."), fontSize = 11.sp, color = Palette.TextDim, lineHeight = 14.sp)
+            }
+            Switch(
+                checked = s.autoDayNight,
+                onCheckedChange = { v -> vm.update { it.copy(autoDayNight = v) } },
+                modifier = Modifier.scale(0.82f),
+                colors = SwitchDefaults.colors(checkedTrackColor = Palette.Amber, checkedThumbColor = Palette.Ink),
+            )
+        }
+        if (s.autoDayNight) {
+            val ids = KeyboardThemes.presets.map { it.id } + "custom"
+            fun name(id: String) = if (id == "custom") tr("Własny motyw") else tr(KeyboardThemes.presets.first { it.id == id }.name)
+            Text(tr("Motyw dzienny"), fontSize = 12.sp, color = Palette.TextDim, modifier = Modifier.padding(start = 14.dp, top = 4.dp))
+            Row(Modifier.padding(horizontal = 10.dp, vertical = 4.dp).horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(5.dp)) {
+                for (id in ids) Chip(name(id), id == s.dayTheme) { vm.update { it.copy(dayTheme = id) } }
+            }
+            Text(tr("Motyw nocny"), fontSize = 12.sp, color = Palette.TextDim, modifier = Modifier.padding(start = 14.dp, top = 4.dp))
+            Row(Modifier.padding(horizontal = 10.dp, vertical = 4.dp).horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(5.dp)) {
+                for (id in ids) Chip(name(id), id == s.nightTheme) { vm.update { it.copy(nightTheme = id) } }
+            }
+        }
+    }
 }

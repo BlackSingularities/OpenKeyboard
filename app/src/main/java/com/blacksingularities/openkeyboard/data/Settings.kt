@@ -10,7 +10,10 @@ import kotlinx.serialization.json.Json
 enum class AppLanguage { SYSTEM, PL, EN }
 
 /** Wygląd klawiszy: wypełnione, z obwódką albo same znaki na tle. */
-enum class KeyStyle { FILLED, OUTLINE, FLAT }
+enum class KeyStyle { FILLED, OUTLINE, FLAT, RAISED }
+
+/** Dźwięk klawiszy: systemowy albo syntezowany w aplikacji. */
+enum class KeySound { SYSTEM, CLICK, SOFT, TYPEWRITER, BUBBLE }
 
 /** Tryb jednej ręki: klawiatura zwężona i dosunięta do krawędzi. */
 enum class OneHanded { OFF, LEFT, RIGHT }
@@ -42,6 +45,8 @@ data class KeyboardSettings(
 
     // Układ
     val numberRow: Boolean = false,
+    /** Rząd strzałek kursora pod klawiszami. */
+    val arrowRow: Boolean = false,
     val keyHints: Boolean = true,
     val keyHeight: Int = 100,
     val bottomPadding: Int = 0,
@@ -99,6 +104,12 @@ data class KeyboardSettings(
     val customKey: Long = 0xFF1A1A1A,
     val customText: Long = 0xFFFFFFFF,
     val customAccent: Long = 0xFFFFFFFF,
+    val customGradient: Boolean = false,
+    val customBg2: Long = 0xFF1A1033,
+    /** Motyw dzienny i nocny wg trybu ciemnego systemu. */
+    val autoDayNight: Boolean = false,
+    val dayTheme: String = "light",
+    val nightTheme: String = "black",
     val bgImage: Boolean = false,
     val bgImageStamp: Long = 0,
     val bgDim: Int = 45,
@@ -109,6 +120,7 @@ data class KeyboardSettings(
     val hapticStrength: Int = 25,
     val sound: Boolean = false,
     val soundVolume: Int = 40,
+    val keySound: KeySound = KeySound.SYSTEM,
     val deleteSwipe: Boolean = true,
     // Gesty – każdemu można przypisać czynność.
     val spaceSwipe: GestureAction = GestureAction.CURSOR,

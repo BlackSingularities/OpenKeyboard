@@ -39,7 +39,8 @@ Najnowszy plik jest zawsze w **[Releases → Latest](../../releases/latest)**. K
 - **Sprawdzanie pisowni** dla całego systemu na tych samych słownikach.
 
 ### Wygląd i ustawienia
-- 7 motywów (Czarny, AMOLED, Grafit, Granat, Las, Jasny, Papier), 10 akcentów, klawisze pełne / z obwódką / same znaki.
+- 18 motywów (w tym płaski czarny bez pól i obramowań oraz gradientowe), 10 akcentów, motyw dzienny i nocny, klawisze pełne / z obwódką / płaskie / 3D.
+- Rząd strzałek, 5 rodzajów dźwięku klawiszy, zmiana rozmiaru przeciąganiem, statystyki z mapą cieplną.
 - Własny motyw: dowolne kolory, obraz w tle klawiatury, krycie klawiszy, 5 czcionek.
 - Konfigurowalne gesty (spacja w bok / w górę / przytrzymanie, przeciągnięcie w dół, przytrzymanie Enter i przecinka), klawiatura dzielona w poziomie, 3 lub 5 podpowiedzi.
 - Wysokość, odstępy, zaokrąglenie, wielkość znaków, siła wibracji, dźwięk, czas przytrzymania – z podglądem na żywo.

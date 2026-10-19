@@ -636,12 +636,15 @@ fun QuickPanel(c: KeyboardController, height: Dp) {
     val theme = KeyboardThemes.presets.firstOrNull { it.id == s.theme } ?: KeyboardThemes.presets.first()
     data class Q(val label: String, val value: String?, val on: Boolean, val action: () -> Unit)
     val tiles = listOf(
+        Q(tr("Płaska czarna"), null, s.theme == "flat") {
+            c.updateSettings { it.copy(theme = if (it.theme == "flat") "black" else "flat", autoDayNight = false) }
+        },
         Q(tr("Motyw"), tr(theme.name), true) {
             val i = KeyboardThemes.presets.indexOf(theme)
-            c.updateSettings { it.copy(theme = KeyboardThemes.presets[(i + 1) % KeyboardThemes.presets.size].id) }
+            c.updateSettings { it.copy(theme = KeyboardThemes.presets[(i + 1) % KeyboardThemes.presets.size].id, autoDayNight = false) }
         },
         Q(tr("Akcent"), null, false) { c.updateSettings { it.copy(accent = (it.accent + 1) % KeyboardThemes.accents.size) } },
-        Q(tr("Klawisze"), when (s.keyStyle) { KeyStyle.FILLED -> tr("Pełne"); KeyStyle.OUTLINE -> tr("Obrys"); KeyStyle.FLAT -> tr("Płaskie") }, true) {
+        Q(tr("Klawisze"), when (s.keyStyle) { KeyStyle.FILLED -> tr("Pełne"); KeyStyle.OUTLINE -> tr("Obrys"); KeyStyle.FLAT -> tr("Płaskie"); KeyStyle.RAISED -> "3D" }, true) {
             c.updateSettings { it.copy(keyStyle = KeyStyle.entries[(it.keyStyle.ordinal + 1) % KeyStyle.entries.size]) }
         },
         Q(tr("Rząd cyfr"), null, s.numberRow) { c.updateSettings { it.copy(numberRow = !it.numberRow) } },
@@ -654,9 +657,9 @@ fun QuickPanel(c: KeyboardController, height: Dp) {
         Q(tr("Jedna ręka"), null, s.oneHanded != OneHanded.OFF) { c.toggleOneHanded() },
         Q(tr("Pływająca"), null, s.floating) { c.toggleFloating() },
         Q(tr("Incognito"), null, s.forceIncognito) { c.updateSettings { it.copy(forceIncognito = !it.forceIncognito) } },
-        Q(tr("Wysokość"), "${s.keyHeight}%", true) {
-            c.updateSettings { it.copy(keyHeight = if (it.keyHeight >= 130) 80 else it.keyHeight + 10) }
-        },
+        Q(tr("Rozmiar"), "${s.keyHeight}%", true) { c.openPanel(Panel.RESIZE) },
+        Q(tr("Strzałki"), null, s.arrowRow) { c.updateSettings { it.copy(arrowRow = !it.arrowRow) } },
+        Q(tr("Gest"), null, s.glideTyping) { c.updateSettings { it.copy(glideTyping = !it.glideTyping) } },
     )
     Column(Modifier.fillMaxWidth().height(height).padding(8.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
         LazyVerticalGrid(GridCells.Fixed(4), Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {

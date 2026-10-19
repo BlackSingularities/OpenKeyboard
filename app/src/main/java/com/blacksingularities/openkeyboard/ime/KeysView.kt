@@ -311,23 +311,34 @@ private fun KeyView(
     val isAction = k.type == KeyType.ENTER && !multiLine && enterAction != EditorInfo.IME_ACTION_NONE && enterAction != EditorInfo.IME_ACTION_UNSPECIFIED
     val shiftOn = k.type == KeyType.SHIFT && shift != ShiftState.OFF
     val opacity = s.keyOpacity / 100f
+    // Płasko: bez pól i obramowań – tylko przy naciśnięciu delikatne podświetlenie.
+    val flat = colors.flat || s.keyStyle == KeyStyle.FLAT
+    val filledAccent = (isAction || shiftOn) && !colors.flat
     val bg = when {
         pressed -> colors.keyPressed
-        isAction || shiftOn -> colors.accent
-        s.keyStyle == KeyStyle.FLAT -> Color.Transparent
+        filledAccent -> colors.accent
+        flat -> Color.Transparent
         special -> colors.keySpecial.copy(alpha = colors.keySpecial.alpha * opacity)
         else -> colors.key.copy(alpha = colors.key.alpha * opacity)
     }
-    val fg = if ((isAction || shiftOn) && !pressed) colors.onAccent else colors.text
+    val fg = when {
+        filledAccent && !pressed -> colors.onAccent
+        colors.flat && (isAction || shiftOn) -> colors.accent
+        else -> colors.text
+    }
     val shape = RoundedCornerShape(s.keyRadius.dp)
     val half = gapPx / 2f
+    // Klawisze 3D: ciemniejsza krawędź pod spodem.
+    val raised = s.keyStyle == KeyStyle.RAISED && !flat && !pressed
+    val shade = if (colors.light) Color.Black.copy(alpha = 0.22f) else Color.Black.copy(alpha = 0.55f)
     Box(
         Modifier
             .offset { IntOffset((r.left + half).roundToInt(), (r.top + half).roundToInt()) }
             .size(with(density) { (r.width - gapPx).coerceAtLeast(1f).toDp() }, with(density) { (r.height - gapPx).coerceAtLeast(1f).toDp() })
+            .then(if (raised) Modifier.clip(shape).background(shade).padding(bottom = 2.dp) else Modifier)
             .clip(shape)
             .background(bg)
-            .then(if (s.keyStyle == KeyStyle.OUTLINE && !pressed && !isAction && !shiftOn) Modifier.border(1.dp, colors.textDim.copy(alpha = 0.35f), shape) else Modifier),
+            .then(if (s.keyStyle == KeyStyle.OUTLINE && !colors.flat && !pressed && !isAction && !shiftOn) Modifier.border(1.dp, colors.textDim.copy(alpha = 0.35f), shape) else Modifier),
         contentAlignment = Alignment.Center,
     ) {
         val scale = s.fontScale / 100f
@@ -362,7 +373,13 @@ private fun KeyView(
                     Text(k.label, color = colors.textDim, fontSize = (12 * scale).sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 }
             }
-            KeyType.SHIFT -> KeyIcon(if (shift == ShiftState.LOCKED) Icons.Rounded.KeyboardCapslock else Icons.Rounded.ArrowUpward, fg)
+            KeyType.SHIFT -> {
+                KeyIcon(if (shift == ShiftState.LOCKED) Icons.Rounded.KeyboardCapslock else Icons.Rounded.ArrowUpward, fg)
+                // Bez pól Shift nie zmienia tła – kropka pod strzałką pokazuje, że jest włączony.
+                if (colors.flat && shiftOn) {
+                    Box(Modifier.align(Alignment.BottomCenter).padding(bottom = 5.dp).size(4.dp).clip(RoundedCornerShape(50)).background(fg))
+                }
+            }
             KeyType.DELETE -> KeyIcon(Icons.AutoMirrored.Rounded.Backspace, fg)
             KeyType.ENTER -> KeyIcon(enterIcon(enterAction, multiLine), fg)
             KeyType.LANGUAGE -> KeyIcon(Icons.Rounded.Language, fg)

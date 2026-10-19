@@ -6,6 +6,9 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.background
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.gestures.detectDragGestures
+import androidx.compose.foundation.gestures.detectVerticalDragGestures
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -69,6 +72,10 @@ import com.blacksingularities.openkeyboard.data.Languages
 import com.blacksingularities.openkeyboard.data.OneHanded
 import com.blacksingularities.openkeyboard.data.GestureAction
 import com.blacksingularities.openkeyboard.dict.Pt
+import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowLeft
+import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowRight
+import androidx.compose.material.icons.rounded.KeyboardArrowUp
+import androidx.compose.material.icons.rounded.KeyboardArrowDown
 import androidx.compose.material.icons.rounded.TextFields
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.graphics.asImageBitmap
@@ -91,7 +98,7 @@ val STRIP_HEIGHT = 44.dp
 @Composable
 fun KeyboardRoot(c: KeyboardController) {
     val s = c.settings
-    val colors = KeyboardThemes.colors(s)
+    val colors = KeyboardThemes.colors(s, androidx.compose.foundation.isSystemInDarkTheme())
     val config = LocalConfiguration.current
     val landscape = config.screenWidthDp > config.screenHeightDp
     CompositionLocalProvider(LocalKb provides colors, LocalContentColor provides colors.text) {
@@ -116,7 +123,7 @@ fun KeyboardRoot(c: KeyboardController) {
                         .width(width)
                         .then(boundsModifier)
                         .clip(RoundedCornerShape(20.dp))
-                        .background(colors.background)
+                        .keyboardBackground(colors)
                         .backgroundImage(bgImage, s.bgDim),
                 ) {
                     // Uchwyt: przeciągnij, aby przesunąć klawiaturę po ekranie.
@@ -153,7 +160,7 @@ fun KeyboardRoot(c: KeyboardController) {
                         .align(Alignment.BottomCenter)
                         .fillMaxWidth()
                         .then(boundsModifier)
-                        .background(colors.background)
+                        .keyboardBackground(colors)
                         .backgroundImage(bgImage, s.bgDim)
                         .padding(bottom = navPadding(c) + s.bottomPadding.dp),
                 ) {
@@ -185,7 +192,9 @@ private fun KeyboardBody(c: KeyboardController, landscape: Boolean) {
                 Panel.KEYS -> {
                     if (c.internal != null) InternalResults(c)
                     OneHandedWrapper(c) { Keys(c, landscape) }
+                    if (c.settings.arrowRow && c.internal == null) ArrowRow(c)
                 }
+                Panel.RESIZE -> ResizePanel(c, landscape)
                 Panel.EMOJI -> EmojiPanel(c, panelHeight)
                 Panel.CLIPBOARD -> ClipboardPanel(c, panelHeight)
                 Panel.EDIT -> EditPanel(c, panelHeight)
@@ -236,6 +245,80 @@ private fun Modifier.backgroundImage(img: androidx.compose.ui.graphics.ImageBitm
         )
         drawRect(androidx.compose.ui.graphics.Color.Black.copy(alpha = dim / 100f))
     }
+
+/** Tło klawiatury: jednolite albo gradient z motywu. */
+private fun Modifier.keyboardBackground(colors: KbColors): Modifier {
+    val second = colors.background2
+    return if (second == null) background(colors.background)
+    else background(androidx.compose.ui.graphics.Brush.verticalGradient(listOf(colors.background, second)))
+}
+
+/** Rząd strzałek pod klawiszami (ustawienie „Rząd strzałek”). */
+@Composable
+private fun ArrowRow(c: KeyboardController) {
+    Row(
+        Modifier.fillMaxWidth().padding(horizontal = 6.dp, vertical = 2.dp),
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
+    ) {
+        RepeatIcon(androidx.compose.material.icons.Icons.AutoMirrored.Rounded.KeyboardArrowLeft, tr("W lewo"), c, Modifier.weight(1f), 38.dp) { c.moveCursor(-1) }
+        RepeatIcon(androidx.compose.material.icons.Icons.Rounded.KeyboardArrowUp, tr("W górę"), c, Modifier.weight(1f), 38.dp) { c.moveCursorVertical(false) }
+        RepeatIcon(androidx.compose.material.icons.Icons.Rounded.KeyboardArrowDown, tr("W dół"), c, Modifier.weight(1f), 38.dp) { c.moveCursorVertical(true) }
+        RepeatIcon(androidx.compose.material.icons.Icons.AutoMirrored.Rounded.KeyboardArrowRight, tr("W prawo"), c, Modifier.weight(1f), 38.dp) { c.moveCursor(1) }
+    }
+}
+
+/**
+ * Zmiana rozmiaru: przeciągnij pasek u góry w górę lub w dół – klawisze rosną lub maleją na żywo.
+ * Przyciski −/+ zmieniają też odstęp od dołu ekranu.
+ */
+@Composable
+private fun ResizePanel(c: KeyboardController, landscape: Boolean) {
+    val colors = LocalKb.current
+    val s = c.settings
+    val density = androidx.compose.ui.platform.LocalDensity.current
+    var acc by androidx.compose.runtime.remember { androidx.compose.runtime.mutableFloatStateOf(0f) }
+    Column {
+        Row(
+            Modifier
+                .fillMaxWidth()
+                .height(40.dp)
+                .padding(horizontal = 10.dp)
+                .clip(RoundedCornerShape(12.dp))
+                .background(colors.accent)
+                .pointerInput(Unit) {
+                    detectVerticalDragGestures(onDragEnd = { acc = 0f }) { change, dy ->
+                        change.consume()
+                        acc += dy
+                        // 4 dp przesunięcia ≈ 1% wysokości klawiszy.
+                        val step = with(density) { 4.dp.toPx() }
+                        val n = (acc / step).toInt()
+                        if (n != 0) {
+                            acc -= n * step
+                            c.updateSettings { it.copy(keyHeight = (it.keyHeight - n).coerceIn(60, 150)) }
+                        }
+                    }
+                },
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.Center,
+        ) {
+            Icon(Icons.Rounded.DragHandle, null, tint = colors.onAccent, modifier = Modifier.size(20.dp))
+            Text(tr("Przeciągnij, aby zmienić wysokość · {0}%", s.keyHeight), color = colors.onAccent, fontSize = 13.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(start = 8.dp))
+        }
+        Keys(c, landscape)
+        Row(Modifier.fillMaxWidth().padding(horizontal = 10.dp, vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+            Text(tr("Odstęp od dołu: {0} dp", s.bottomPadding), color = colors.textDim, fontSize = 12.sp, modifier = Modifier.weight(1f))
+            StripIcon(androidx.compose.material.icons.Icons.Rounded.KeyboardArrowDown, tr("Mniej")) { c.updateSettings { it.copy(bottomPadding = (it.bottomPadding - 4).coerceAtLeast(0)) } }
+            StripIcon(androidx.compose.material.icons.Icons.Rounded.KeyboardArrowUp, tr("Więcej")) { c.updateSettings { it.copy(bottomPadding = (it.bottomPadding + 4).coerceAtMost(60)) } }
+            Text(
+                tr("Gotowe"),
+                color = colors.onAccent,
+                fontWeight = FontWeight.Bold,
+                fontSize = 13.sp,
+                modifier = Modifier.clip(RoundedCornerShape(50)).background(colors.accent).combinedClickable { c.closePanel() }.padding(horizontal = 14.dp, vertical = 7.dp),
+            )
+        }
+    }
+}
 
 @Composable
 fun Keys(c: KeyboardController, landscape: Boolean) {
@@ -318,7 +401,7 @@ private fun OneHandedWrapper(c: KeyboardController, content: @Composable () -> U
     }
     BoxWithConstraints(Modifier.fillMaxWidth()) {
         val w = maxWidth * (s.oneHandedWidth / 100f)
-        Row(Modifier.fillMaxWidth().background(colors.background), verticalAlignment = Alignment.CenterVertically) {
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
             if (s.oneHanded == OneHanded.RIGHT) Box(Modifier.weight(1f).height(rowHeight(s, c.layout.mode, false) * c.layout.rows.size)) { side() }
             Box(Modifier.width(w)) { content() }
             if (s.oneHanded == OneHanded.LEFT) Box(Modifier.weight(1f).height(rowHeight(s, c.layout.mode, false) * c.layout.rows.size)) { side() }
@@ -485,6 +568,7 @@ private fun PanelBar(c: KeyboardController) {
         Panel.LANGUAGES -> tr("Języki")
         Panel.QUICK -> tr("Szybkie ustawienia")
         Panel.TEXT -> tr("Narzędzia tekstu")
+        Panel.RESIZE -> tr("Rozmiar klawiatury")
         Panel.KEYS -> ""
     }
     Row(Modifier.fillMaxSize().padding(horizontal = 4.dp), verticalAlignment = Alignment.CenterVertically) {
