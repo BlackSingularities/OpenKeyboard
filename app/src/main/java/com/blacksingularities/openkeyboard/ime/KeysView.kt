@@ -52,7 +52,18 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.blacksingularities.openkeyboard.data.GestureAction
+import com.blacksingularities.openkeyboard.data.KeyFont
 import com.blacksingularities.openkeyboard.data.KeyStyle
+import com.blacksingularities.openkeyboard.data.SplitMode
+import com.blacksingularities.openkeyboard.dict.Pt
+import com.blacksingularities.openkeyboard.dict.normalizeKey
+import androidx.compose.foundation.Canvas
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.StrokeJoin
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.text.font.FontFamily
 import com.blacksingularities.openkeyboard.data.KeyboardSettings
 import com.blacksingularities.openkeyboard.keyboard.KbColors
 import com.blacksingularities.openkeyboard.keyboard.Key
@@ -64,6 +75,7 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlin.math.abs
+import kotlin.math.hypot
 import kotlin.math.ceil
 import kotlin.math.roundToInt
 
@@ -97,6 +109,9 @@ interface KeyActions {
     fun hide()
     fun tick()
     fun long()
+    /** Słowo napisane gestem: ścieżka palca, środki liter, szerokość klawisza. */
+    fun glide(path: List<Pt>, centers: Map<Char, Pt>, keyW: Float)
+    fun gesture(action: GestureAction)
 }
 
 /**
@@ -124,19 +139,32 @@ fun KeyGrid(
     var popup by remember { mutableStateOf<PopupState?>(null) }
     val act by rememberUpdatedState(actions)
     val upper = shift != ShiftState.OFF
+    var trail by remember { mutableStateOf<List<Offset>>(emptyList()) }
+    val split = layout.mode != KeyboardMode.NUMBER && layout.mode != KeyboardMode.PHONE &&
+        (settings.split == SplitMode.ALWAYS || (settings.split == SplitMode.LANDSCAPE && landscape))
 
     BoxWithConstraints(modifier.fillMaxWidth().height(rowH * layout.rows.size)) {
         val wPx = constraints.maxWidth.toFloat()
         val hPx = with(density) { rowH.toPx() }
-        val unit = wPx / layout.units
-        val rects = remember(layout, wPx, hPx) {
+        // Klawiatura dzielona: przerwa na środku (w jednostkach klawisza), spacja się rozciąga.
+        val gapUnits = if (split) settings.splitGap / 10f else 0f
+        val unit = wPx / (layout.units + gapUnits)
+        val rects = remember(layout, wPx, hPx, gapUnits) {
             var id = 0
+            val mid = layout.units / 2f
             layout.rows.flatMapIndexed { r, row ->
-                var x = (layout.units - row.sumOf { it.width.toDouble() }.toFloat()) / 2f * unit
+                var u = (layout.units - row.sumOf { it.width.toDouble() }.toFloat()) / 2f
                 row.map { k ->
-                    val rect = Rect(x, r * hPx, x + k.width * unit, (r + 1) * hPx)
-                    x += k.width * unit
-                    KeyRect(id++, k, r, rect)
+                    val start = u
+                    val end = u + k.width
+                    u = end
+                    val (l, rr) = when {
+                        gapUnits == 0f -> start to end
+                        end <= mid + 0.01f -> start to end
+                        start >= mid - 0.01f -> start + gapUnits to end + gapUnits
+                        else -> start to end + gapUnits
+                    }
+                    KeyRect(id++, k, r, Rect(l * unit, r * hPx, rr * unit, (r + 1) * hPx))
                 }
             }
         }
@@ -151,6 +179,8 @@ fun KeyGrid(
         tracker.settings = settings
         tracker.upper = upper
         tracker.onPopup = { popup = it }
+        tracker.onTrail = { trail = it }
+        tracker.keyW = unit
         tracker.popupGetter = { popup }
 
         Box(
@@ -181,6 +211,17 @@ fun KeyGrid(
         ) {
             for (kr in rects) {
                 KeyView(kr, settings, colors, upper, shift, enterAction, multiLine, pressed[kr.id] == true, gapPx, layout.mode)
+            }
+        }
+
+        // Ślad palca przy pisaniu gestem.
+        if (trail.size > 1 && settings.glideTrail) {
+            val stroke = with(density) { 5.dp.toPx() }
+            Canvas(Modifier.matchParentSize()) {
+                val path = Path()
+                path.moveTo(trail[0].x, trail[0].y)
+                for (i in 1 until trail.size) path.lineTo(trail[i].x, trail[i].y)
+                drawPath(path, colors.accent.copy(alpha = 0.75f), style = Stroke(stroke, cap = StrokeCap.Round, join = StrokeJoin.Round))
             }
         }
 
@@ -269,12 +310,13 @@ private fun KeyView(
     val special = k.type != KeyType.CHAR && k.type != KeyType.SPACE && k.type != KeyType.TEXT
     val isAction = k.type == KeyType.ENTER && !multiLine && enterAction != EditorInfo.IME_ACTION_NONE && enterAction != EditorInfo.IME_ACTION_UNSPECIFIED
     val shiftOn = k.type == KeyType.SHIFT && shift != ShiftState.OFF
+    val opacity = s.keyOpacity / 100f
     val bg = when {
         pressed -> colors.keyPressed
         isAction || shiftOn -> colors.accent
         s.keyStyle == KeyStyle.FLAT -> Color.Transparent
-        special -> colors.keySpecial
-        else -> colors.key
+        special -> colors.keySpecial.copy(alpha = colors.keySpecial.alpha * opacity)
+        else -> colors.key.copy(alpha = colors.key.alpha * opacity)
     }
     val fg = if ((isAction || shiftOn) && !pressed) colors.onAccent else colors.text
     val shape = RoundedCornerShape(s.keyRadius.dp)
@@ -296,6 +338,7 @@ private fun KeyView(
                 Text(
                     label,
                     color = fg,
+                    fontFamily = keyFontFamily(s.keyFont),
                     fontSize = ((if (label.length > 2) 15 else if (numpad) 24 else 21) * scale).sp,
                     fontWeight = if (s.boldLabels) FontWeight.SemiBold else FontWeight.Normal,
                     maxLines = 1,
@@ -337,6 +380,14 @@ private fun KeyView(
     }
 }
 
+fun keyFontFamily(f: KeyFont): FontFamily? = when (f) {
+    KeyFont.DEFAULT -> null
+    KeyFont.SANS -> FontFamily.SansSerif
+    KeyFont.SERIF -> FontFamily.Serif
+    KeyFont.MONO -> FontFamily.Monospace
+    KeyFont.CONDENSED -> FontFamily.Cursive
+}
+
 @Composable
 private fun KeyIcon(icon: ImageVector, tint: Color) {
     Icon(icon, null, tint = tint, modifier = Modifier.size(22.dp))
@@ -354,13 +405,14 @@ fun enterIcon(action: Int, multiLine: Boolean): ImageVector = if (multiLine) {
     }
 }
 
-private enum class TrackMode { NORMAL, POPUP, SPACE_CURSOR, DELETE_SWIPE, HIDE, DONE, LONG_DONE }
+private enum class TrackMode { NORMAL, POPUP, SPACE_CURSOR, DELETE_SWIPE, HIDE, DONE, LONG_DONE, GLIDE, SPACE_UP, SPACE_LANG }
 
 private class Track(val id: Long, var key: KeyRect, val down: Offset) {
     var mode = TrackMode.NORMAL
     var job: Job? = null
     var lastX = down.x
     var words = 0
+    val points = ArrayList<Offset>()
 }
 
 /**
@@ -380,6 +432,8 @@ private class TouchTracker(
     var onPopup: (PopupState?) -> Unit = {}
     var upper = false
     var popupGetter: () -> PopupState? = { null }
+    var onTrail: (List<Offset>) -> Unit = {}
+    var keyW = 1f
     private val tracks = LinkedHashMap<Long, Track>()
     private val slop = 10f * density
 
@@ -427,7 +481,8 @@ private class TouchTracker(
     private fun scheduleLong(t: Track) {
         t.job?.cancel()
         val k = t.key.key
-        val hasLong = k.popup.isNotEmpty() || k.type in setOf(KeyType.SPACE, KeyType.SHIFT, KeyType.SYMBOLS, KeyType.LANGUAGE, KeyType.ENTER)
+        val hasLong = k.popup.isNotEmpty() || k.type in setOf(KeyType.SPACE, KeyType.SHIFT, KeyType.SYMBOLS, KeyType.LANGUAGE, KeyType.ENTER) ||
+            (k.text == "," && settings.commaLongPress != GestureAction.NONE)
         if (!hasLong) return
         t.job = scope.launch {
             delay(settings.longPressMs.toLong())
@@ -439,6 +494,12 @@ private class TouchTracker(
         val a = actions() ?: return
         if (t.mode != TrackMode.NORMAL) return
         val k = t.key.key
+        if (k.text == "," && settings.commaLongPress != GestureAction.NONE) {
+            t.mode = TrackMode.LONG_DONE
+            a.gesture(settings.commaLongPress)
+            a.long()
+            return
+        }
         if (k.popup.isNotEmpty()) {
             val opts = if (upper) k.popup.map { if (it == "ß") it else it.uppercase() } else k.popup
             val cell = (t.key.rect.width.coerceAtMost(rowH * 1.1f)).coerceAtLeast(rowH * 0.8f)
@@ -481,6 +542,10 @@ private class TouchTracker(
                     a.tick()
                 }
             }
+            TrackMode.GLIDE -> {
+                t.points += p
+                onTrail(t.points.toList())
+            }
             TrackMode.DELETE_SWIPE -> {
                 val w = ((-dx - slop) / (26f * density)).toInt().coerceAtLeast(0) + if (-dx > slop) 1 else 0
                 if (w != t.words) {
@@ -491,17 +556,37 @@ private class TouchTracker(
             }
             TrackMode.NORMAL -> {
                 val k = t.key.key
-                if (settings.swipeDownHide && dy > 64f * density && abs(dx) < dy / 2f && k.type != KeyType.DELETE) {
+                if (settings.swipeDown != GestureAction.NONE && dy > 64f * density && abs(dx) < dy / 2f && k.type != KeyType.DELETE && tracks.size == 1) {
                     t.job?.cancel()
                     t.mode = TrackMode.HIDE
                     update(t.key.id to false, false, null)
                     return
                 }
-                if (k.type == KeyType.SPACE && settings.spaceCursor && abs(dx) > slop * 1.5f) {
+                if (k.type == KeyType.SPACE && settings.spaceSwipeUp != GestureAction.NONE && -dy > rowH * 0.9f && abs(dx) < -dy) {
                     t.job?.cancel()
-                    t.mode = TrackMode.SPACE_CURSOR
+                    t.mode = TrackMode.SPACE_UP
+                    update(t.key.id to false, false, null)
+                    a.long()
+                    return
+                }
+                if (k.type == KeyType.SPACE && settings.spaceSwipe != GestureAction.NONE && abs(dx) > slop * 1.5f) {
+                    t.job?.cancel()
+                    t.mode = if (settings.spaceSwipe == GestureAction.CURSOR) TrackMode.SPACE_CURSOR else TrackMode.SPACE_LANG
                     t.lastX = p.x
                     a.long()
+                    return
+                }
+                // Pisanie gestem: palec przejechał dalej niż na sąsiedni klawisz.
+                if (settings.glideTyping && layout.mode == KeyboardMode.ALPHA && tracks.size == 1 && k.type == KeyType.CHAR &&
+                    k.text.length == 1 && k.text[0].isLetter() && hypot(dx, dy) > keyW * 1.1f
+                ) {
+                    t.job?.cancel()
+                    t.mode = TrackMode.GLIDE
+                    t.points.clear()
+                    t.points += t.down
+                    t.points += p
+                    update(t.key.id to false, false, null)
+                    onTrail(t.points.toList())
                     return
                 }
                 if (k.type == KeyType.DELETE && settings.deleteSwipe && dx < -slop * 2f) {
@@ -534,7 +619,21 @@ private class TouchTracker(
         if (a == null) return
         when (t.mode) {
             TrackMode.DONE, TrackMode.SPACE_CURSOR, TrackMode.LONG_DONE -> {}
-            TrackMode.HIDE -> a.hide()
+            TrackMode.HIDE -> a.gesture(settings.swipeDown)
+            TrackMode.SPACE_UP -> a.gesture(settings.spaceSwipeUp)
+            TrackMode.SPACE_LANG -> a.gesture(settings.spaceSwipe)
+            TrackMode.GLIDE -> {
+                t.points += p
+                onTrail(emptyList())
+                val centers = HashMap<Char, Pt>()
+                for (kr in rects) {
+                    if (kr.key.type == KeyType.CHAR && kr.key.text.length == 1 && kr.key.text[0].isLetter()) {
+                        val c = normalizeKey(kr.key.text).firstOrNull() ?: continue
+                        centers.putIfAbsent(c, Pt(kr.rect.center.x, kr.rect.center.y))
+                    }
+                }
+                a.glide(t.points.map { Pt(it.x, it.y) }, centers, keyW)
+            }
             TrackMode.DELETE_SWIPE -> a.selectDone(delete = t.words > 0)
             TrackMode.POPUP -> {
                 val pp = popupGetter()

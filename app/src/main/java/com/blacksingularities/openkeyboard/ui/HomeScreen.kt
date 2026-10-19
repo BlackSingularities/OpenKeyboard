@@ -91,6 +91,12 @@ import com.blacksingularities.openkeyboard.data.Autocorrect
 import com.blacksingularities.openkeyboard.data.KeyboardSettings
 import com.blacksingularities.openkeyboard.data.Languages
 import com.blacksingularities.openkeyboard.data.OneHanded
+import com.blacksingularities.openkeyboard.data.SplitMode
+import androidx.compose.material.icons.rounded.Gesture
+import androidx.compose.material.icons.rounded.Draw
+import androidx.compose.material.icons.rounded.FormatQuote
+import androidx.compose.material.icons.rounded.VerticalSplit
+import androidx.compose.material.icons.automirrored.rounded.Undo
 import com.blacksingularities.openkeyboard.data.Prefs
 import com.blacksingularities.openkeyboard.dict.UserModel
 import com.blacksingularities.openkeyboard.features.ClipboardHistory
@@ -119,6 +125,7 @@ fun AppRoot(vm: AppViewModel) {
             Sheet.SHORTCUTS -> ShortcutsSheet(vm)
             Sheet.TOOLBAR -> ToolbarSheet(vm)
             Sheet.ABOUT -> AboutSheet(vm)
+            Sheet.GESTURES -> GesturesSheet(vm)
             null -> {}
         }
         val msg = vm.message
@@ -260,7 +267,7 @@ private fun ColumnScope.SettingsContent(vm: AppViewModel) {
             Tile(Icons.Rounded.Translate, tr("Wiele naraz"), tr("Podpowiedzi i autokorekta ze wszystkich włączonych języków jednocześnie – bez przełączania"), s.multilingual) { v -> set { it.copy(multilingual = v) } },
             Tile(Icons.Rounded.Language, tr("Klawisz języka"), tr("Przycisk globusa obok spacji (gdy jest kilka języków)"), s.languageKey) { v -> set { it.copy(languageKey = v) } },
             Tile(Icons.Rounded.SpaceBar, tr("Język na spacji"), tr("Nazwa bieżącego języka na klawiszu spacji"), s.showSpaceLanguage) { v -> set { it.copy(showSpaceLanguage = v) } },
-            Tile(Icons.Rounded.TouchApp, tr("Spacja: języki"), tr("Przytrzymanie spacji otwiera listę języków (albo wybór klawiatury)"), s.spaceLongPressPicker) { v -> set { it.copy(spaceLongPressPicker = v) } },
+            Tile(Icons.Rounded.Psychology, tr("Wykrywaj język"), tr("Klawiatura rozpoznaje, w jakim języku właśnie piszesz, i jego słowom daje pierwszeństwo"), s.autoLanguage) { v -> set { it.copy(autoLanguage = v) } },
         ),
     )
 
@@ -281,12 +288,25 @@ private fun ColumnScope.SettingsContent(vm: AppViewModel) {
             },
             short = { when (it) { Autocorrect.OFF -> tr("Wył."); Autocorrect.GENTLE -> "1"; Autocorrect.NORMAL -> "2"; Autocorrect.AGGRESSIVE -> "3" } },
         ) { v -> set { it.copy(autocorrect = v) } }
+        CompactChoice(
+            Icons.Rounded.Spellcheck,
+            tr("Liczba podpowiedzi"),
+            listOf(3, 5),
+            if (s.suggestionCount >= 5) 5 else 3,
+            { tr("{0} słowa w pasku", it) },
+            short = { it.toString() },
+        ) { v -> set { it.copy(suggestionCount = v) } }
     }
     TileGrid(
         listOf(
             Tile(Icons.Rounded.Spellcheck, tr("Podpowiedzi"), tr("Pasek z podpowiedziami słów nad klawiaturą"), s.suggestions) { v -> set { it.copy(suggestions = v) } },
             Tile(Icons.Rounded.Psychology, tr("Następne słowo"), tr("Przewidywanie kolejnego słowa na podstawie Twojego pisania"), s.nextWord) { v -> set { it.copy(nextWord = v) } },
             Tile(Icons.AutoMirrored.Rounded.MenuBook, tr("Ucz się"), tr("Zapamiętywanie nowych słów i par słów (lokalnie, na telefonie)"), s.learnWords) { v -> set { it.copy(learnWords = v) } },
+            Tile(Icons.Rounded.Gesture, tr("Pisanie gestem"), tr("Przeciągnij palcem po literach słowa bez odrywania – klawiatura odgadnie słowo"), s.glideTyping) { v -> set { it.copy(glideTyping = v) } },
+            Tile(Icons.Rounded.Draw, tr("Ślad gestu"), tr("Rysowanie śladu palca podczas pisania gestem"), s.glideTrail) { v -> set { it.copy(glideTrail = v) } },
+            Tile(Icons.AutoMirrored.Rounded.Undo, tr("Ucz się z cofnięć"), tr("Poprawka cofnięta Backspace'em nie wraca, a wpisane słowo trafia do słownika"), s.learnFromUndo) { v -> set { it.copy(learnFromUndo = v) } },
+            Tile(Icons.Rounded.FormatQuote, tr("Cudzysłowy „”"), tr("Typograficzne cudzysłowy zależne od języka zamiast prostych"), s.smartQuotes) { v -> set { it.copy(smartQuotes = v) } },
+            Tile(Icons.Rounded.SpaceBar, tr("Spacja po , ! ?"), tr("Spacja dodawana automatycznie, gdy po przecinku, wykrzykniku lub pytajniku od razu piszesz dalej"), s.autoSpaceAfterPunct) { v -> set { it.copy(autoSpaceAfterPunct = v) } },
             Tile(Icons.Rounded.KeyboardCapslock, tr("Wielka litera"), tr("Automatycznie wielka litera na początku zdania"), s.autoCapitalize) { v -> set { it.copy(autoCapitalize = v) } },
             Tile(Icons.Rounded.SpaceBar, tr("Kropka 2× spacja"), tr("Dwukrotne naciśnięcie spacji wstawia kropkę i spację"), s.doubleSpacePeriod) { v -> set { it.copy(doubleSpacePeriod = v) } },
             Tile(Icons.Rounded.AutoFixHigh, tr("Interpunkcja"), tr("Kropka, przecinek, ! i ? po wybranym słowie trafiają za słowo, a spacja za znak"), s.smartPunctuation) { v -> set { it.copy(smartPunctuation = v) } },
@@ -316,6 +336,17 @@ private fun ColumnScope.SettingsContent(vm: AppViewModel) {
     )
 
     SectionHeader(Icons.Rounded.Keyboard, tr("Układ"))
+    Group(null) {
+        CompactChoice(
+            Icons.Rounded.VerticalSplit,
+            tr("Klawiatura dzielona"),
+            SplitMode.entries,
+            s.split,
+            { when (it) { SplitMode.OFF -> tr("Nigdy"); SplitMode.LANDSCAPE -> tr("W poziomie"); SplitMode.ALWAYS -> tr("Zawsze") } },
+            short = { when (it) { SplitMode.OFF -> tr("Wył."); SplitMode.LANDSCAPE -> tr("Poziom"); SplitMode.ALWAYS -> tr("Zawsze") } },
+        ) { v -> set { it.copy(split = v) } }
+        SliderRow(Icons.Rounded.VerticalSplit, tr("Przerwa w środku"), s.splitGap, 5..50, 1, { "${it / 10f}" }) { v -> set { it.copy(splitGap = v) } }
+    }
     TileGrid(
         listOf(
             Tile(Icons.Rounded.Dialpad, tr("Rząd cyfr"), tr("Stały rząd cyfr nad literami"), s.numberRow) { v -> set { it.copy(numberRow = v) } },
@@ -345,12 +376,11 @@ private fun ColumnScope.SettingsContent(vm: AppViewModel) {
         listOf(
             Tile(Icons.Rounded.Vibration, tr("Wibracja"), tr("Delikatna wibracja przy każdym klawiszu"), s.haptics) { v -> set { it.copy(haptics = v) } },
             Tile(Icons.Rounded.VolumeUp, tr("Dźwięk"), tr("Dźwięk systemowy przy naciśnięciu klawisza"), s.sound) { v -> set { it.copy(sound = v) } },
-            Tile(Icons.Rounded.SpaceBar, tr("Kursor spacją"), tr("Przesuwanie palca po spacji przesuwa kursor"), s.spaceCursor) { v -> set { it.copy(spaceCursor = v) } },
             Tile(Icons.AutoMirrored.Rounded.Backspace, tr("Usuwanie gestem"), tr("Przesuń palec w lewo z Backspace, aby zaznaczyć i usunąć całe słowa"), s.deleteSwipe) { v -> set { it.copy(deleteSwipe = v) } },
-            Tile(Icons.Rounded.SwipeDown, tr("W dół chowa"), tr("Przeciągnięcie palcem w dół po klawiszach chowa klawiaturę"), s.swipeDownHide) { v -> set { it.copy(swipeDownHide = v) } },
         ),
     )
     Group(null) {
+        ActionRow(Icons.Rounded.Gesture, tr("Gesty"), tr("Spacja w bok i w górę, przytrzymania, przeciągnięcie w dół – przypisz własne czynności")) { vm.sheet = Sheet.GESTURES }
         SliderRow(Icons.Rounded.Vibration, tr("Siła wibracji"), s.hapticStrength, 1..100, 1, { "$it%" }) { v -> set { it.copy(hapticStrength = v) } }
         SliderRow(Icons.Rounded.VolumeUp, tr("Głośność klawiszy"), s.soundVolume, 1..100, 1, { "$it%" }) { v -> set { it.copy(soundVolume = v) } }
     }

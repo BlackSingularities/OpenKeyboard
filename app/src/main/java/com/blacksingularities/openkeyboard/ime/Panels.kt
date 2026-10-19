@@ -25,6 +25,7 @@ import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -689,4 +690,75 @@ fun QuickPanel(c: KeyboardController, height: Dp) {
             PanelTextButton("ABC") { c.closePanel() }
         }
     }
+}
+
+// ───────────────────────── narzędzia tekstu ─────────────────────────
+
+/**
+ * Zmiana wielkości liter, ozdobne style (dotknięcie – pisz w tym stylu, przytrzymanie – zmień
+ * zaznaczenie albo poprzednie słowo), wstawianie daty i godziny, licznik znaków i słów.
+ */
+@Composable
+fun TextPanel(c: KeyboardController, height: Dp) {
+    val colors = LocalKb.current
+    val stats = remember { c.fieldStats() }
+    Column(
+        Modifier.fillMaxWidth().height(height).verticalScroll(rememberScrollState()).padding(horizontal = 8.dp, vertical = 6.dp),
+        verticalArrangement = Arrangement.spacedBy(6.dp),
+    ) {
+        Text(tr("Wielkość liter – zaznaczenia albo słowa przed kursorem"), color = colors.textDim, fontSize = 11.sp)
+        Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            PanelTextButton("Aa ⟳") { c.transformText(com.blacksingularities.openkeyboard.features.TextTools::cycleCase) }
+            PanelTextButton("ABC") { c.transformText { it.uppercase() } }
+            PanelTextButton("abc") { c.transformText { it.lowercase() } }
+            PanelTextButton(tr("Zdanie")) { c.transformText(com.blacksingularities.openkeyboard.features.TextTools::sentence) }
+            PanelTextButton(tr("Tytuł")) { c.transformText(com.blacksingularities.openkeyboard.features.TextTools::title) }
+            PanelTextButton("aA ⇄") { c.transformText(com.blacksingularities.openkeyboard.features.TextTools::invert) }
+        }
+        Text(tr("Styl pisania – dotknij, aby pisać; przytrzymaj, aby zmienić zaznaczenie"), color = colors.textDim, fontSize = 11.sp)
+        Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            StyleChip(tr("Zwykły"), c.fancy == null, onLong = null) { c.fancy = null }
+            for (st in com.blacksingularities.openkeyboard.features.FancyStyle.entries) {
+                StyleChip(st.label, c.fancy == st, onLong = { c.transformText { com.blacksingularities.openkeyboard.features.TextTools.style(it, st) } }) {
+                    c.fancy = if (c.fancy == st) null else st
+                    if (c.fancy != null) c.closePanel()
+                }
+            }
+        }
+        Text(tr("Wstaw"), color = colors.textDim, fontSize = 11.sp)
+        Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            PanelTextButton(com.blacksingularities.openkeyboard.features.TextTools.date()) { c.commitRaw(com.blacksingularities.openkeyboard.features.TextTools.date()) }
+            PanelTextButton(com.blacksingularities.openkeyboard.features.TextTools.time()) { c.commitRaw(com.blacksingularities.openkeyboard.features.TextTools.time()) }
+            PanelTextButton(com.blacksingularities.openkeyboard.features.TextTools.iso()) { c.commitRaw(com.blacksingularities.openkeyboard.features.TextTools.iso()) }
+            PanelTextButton("…") { c.commitRaw("…") }
+            PanelTextButton("—") { c.commitRaw("—") }
+            PanelTextButton("→") { c.commitRaw("→") }
+        }
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text(
+                tr("{0} znaków · {1} słów", stats.first, stats.second),
+                color = colors.textDim,
+                fontSize = 12.sp,
+                modifier = Modifier.weight(1f),
+            )
+            PanelTextButton(tr("Wyczyść pole"), icon = Icons.Rounded.DeleteSweep) { c.clearField() }
+            PanelTextButton("ABC") { c.closePanel() }
+        }
+    }
+}
+
+@Composable
+private fun StyleChip(label: String, selected: Boolean, onLong: (() -> Unit)?, onClick: () -> Unit) {
+    val colors = LocalKb.current
+    Text(
+        label,
+        color = if (selected) colors.onAccent else colors.text,
+        fontSize = 15.sp,
+        maxLines = 1,
+        modifier = Modifier
+            .clip(RoundedCornerShape(50))
+            .background(if (selected) colors.accent else colors.keySpecial)
+            .combinedClickable(onLongClick = onLong, onClick = onClick)
+            .padding(horizontal = 12.dp, vertical = 7.dp),
+    )
 }

@@ -19,7 +19,16 @@ enum class OneHanded { OFF, LEFT, RIGHT }
 enum class Autocorrect { OFF, GENTLE, NORMAL, AGGRESSIVE }
 
 /** Przyciski paska narzędzi (gdy nie ma podpowiedzi). */
-enum class ToolbarItem { CLIPBOARD, EMOJI, EDIT, VOICE, TRANSLATE, ONE_HANDED, FLOATING, NUMPAD, SETTINGS }
+enum class ToolbarItem { CLIPBOARD, EMOJI, EDIT, TEXT_TOOLS, VOICE, TRANSLATE, ONE_HANDED, FLOATING, NUMPAD, SETTINGS }
+
+/** Czynność przypisana do gestu. */
+enum class GestureAction { NONE, CURSOR, LANGUAGE, HIDE, DELETE_WORD, SHIFT, EMOJI, CLIPBOARD, VOICE, TEXT_TOOLS, LANGUAGES, IME_PICKER, NUMPAD, UNDO }
+
+/** Czcionka napisów na klawiszach. */
+enum class KeyFont { DEFAULT, SANS, SERIF, MONO, CONDENSED }
+
+/** Dzielenie klawiatury na dwie połówki (wygodne kciukami na szerokim ekranie). */
+enum class SplitMode { OFF, LANDSCAPE, ALWAYS }
 
 @Serializable
 data class KeyboardSettings(
@@ -44,6 +53,8 @@ data class KeyboardSettings(
     val longPressMs: Int = 300,
     val floating: Boolean = false,
     val floatingScale: Int = 85,
+    val split: SplitMode = SplitMode.LANDSCAPE,
+    val splitGap: Int = 22,
 
     // Pisanie i podpowiedzi
     val suggestions: Boolean = true,
@@ -61,6 +72,16 @@ data class KeyboardSettings(
     val incognitoAuto: Boolean = true,
     val forceIncognito: Boolean = false,
     val blockOffensive: Boolean = false,
+    /** Pisanie gestem: przeciągnij palcem po literach słowa. */
+    val glideTyping: Boolean = true,
+    val glideTrail: Boolean = true,
+    /** Wykrywanie języka, w którym właśnie piszesz – ten słownik dostaje pierwszeństwo. */
+    val autoLanguage: Boolean = true,
+    /** Cofnięta poprawka nie wraca, a słowo trafia do słownika. */
+    val learnFromUndo: Boolean = true,
+    val suggestionCount: Int = 3,
+    val smartQuotes: Boolean = false,
+    val autoSpaceAfterPunct: Boolean = true,
 
     // Wygląd
     val theme: String = "black",
@@ -72,20 +93,34 @@ data class KeyboardSettings(
     val keyPreview: Boolean = true,
     val showSpaceLanguage: Boolean = true,
     val boldLabels: Boolean = false,
+    val keyFont: KeyFont = KeyFont.DEFAULT,
+    // Własny motyw (theme = "custom"): kolory ARGB i opcjonalny obraz tła.
+    val customBg: Long = 0xFF000000,
+    val customKey: Long = 0xFF1A1A1A,
+    val customText: Long = 0xFFFFFFFF,
+    val customAccent: Long = 0xFFFFFFFF,
+    val bgImage: Boolean = false,
+    val bgImageStamp: Long = 0,
+    val bgDim: Int = 45,
+    val keyOpacity: Int = 100,
 
     // Dotyk i dźwięk
     val haptics: Boolean = true,
     val hapticStrength: Int = 25,
     val sound: Boolean = false,
     val soundVolume: Int = 40,
-    val spaceCursor: Boolean = true,
     val deleteSwipe: Boolean = true,
-    val swipeDownHide: Boolean = true,
-    val spaceLongPressPicker: Boolean = true,
+    // Gesty – każdemu można przypisać czynność.
+    val spaceSwipe: GestureAction = GestureAction.CURSOR,
+    val spaceSwipeUp: GestureAction = GestureAction.TEXT_TOOLS,
+    val spaceLongPress: GestureAction = GestureAction.LANGUAGES,
+    val swipeDown: GestureAction = GestureAction.HIDE,
+    val enterLongPress: GestureAction = GestureAction.EMOJI,
+    val commaLongPress: GestureAction = GestureAction.NONE,
 
     // Narzędzia
     val toolbar: List<ToolbarItem> = listOf(
-        ToolbarItem.CLIPBOARD, ToolbarItem.EMOJI, ToolbarItem.EDIT, ToolbarItem.VOICE,
+        ToolbarItem.CLIPBOARD, ToolbarItem.EMOJI, ToolbarItem.EDIT, ToolbarItem.TEXT_TOOLS, ToolbarItem.VOICE,
         ToolbarItem.TRANSLATE, ToolbarItem.ONE_HANDED, ToolbarItem.FLOATING, ToolbarItem.SETTINGS,
     ),
     val clipboardHistory: Boolean = true,

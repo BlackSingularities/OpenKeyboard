@@ -71,6 +71,11 @@ object Dictionaries {
 
     fun get(code: String): WordList? = loaded[code]
 
+    /** Testy: słownik podany wprost, bez plików. */
+    internal fun putForTest(code: String, list: WordList) {
+        loaded[code] = list
+    }
+
     fun isAvailable(code: String): Boolean {
         val l = Languages.get(code)
         return l.bundled || file(code).exists()

@@ -67,6 +67,11 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.blacksingularities.openkeyboard.data.Languages
 import com.blacksingularities.openkeyboard.data.OneHanded
+import com.blacksingularities.openkeyboard.data.GestureAction
+import com.blacksingularities.openkeyboard.dict.Pt
+import androidx.compose.material.icons.rounded.TextFields
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.graphics.asImageBitmap
 import com.blacksingularities.openkeyboard.data.ToolbarItem
 import com.blacksingularities.openkeyboard.dict.Suggestion
 import com.blacksingularities.openkeyboard.dict.SuggestionKind
@@ -91,6 +96,7 @@ fun KeyboardRoot(c: KeyboardController) {
     val landscape = config.screenWidthDp > config.screenHeightDp
     CompositionLocalProvider(LocalKb provides colors, LocalContentColor provides colors.text) {
         BoxWithConstraints(Modifier.fillMaxSize()) {
+            val bgImage = rememberKeyboardBackground(c.service, s.bgImage, s.bgImageStamp)
             val floating = s.floating
             val boundsModifier = Modifier.onGloballyPositioned { coords ->
                 val b = coords.boundsInWindow()
@@ -110,7 +116,8 @@ fun KeyboardRoot(c: KeyboardController) {
                         .width(width)
                         .then(boundsModifier)
                         .clip(RoundedCornerShape(20.dp))
-                        .background(colors.background),
+                        .background(colors.background)
+                        .backgroundImage(bgImage, s.bgDim),
                 ) {
                     // Uchwyt: przeciągnij, aby przesunąć klawiaturę po ekranie.
                     Box(
@@ -147,6 +154,7 @@ fun KeyboardRoot(c: KeyboardController) {
                         .fillMaxWidth()
                         .then(boundsModifier)
                         .background(colors.background)
+                        .backgroundImage(bgImage, s.bgDim)
                         .padding(bottom = navPadding(c) + s.bottomPadding.dp),
                 ) {
                     KeyboardBody(c, landscape)
@@ -184,6 +192,7 @@ private fun KeyboardBody(c: KeyboardController, landscape: Boolean) {
                 Panel.VOICE -> VoicePanel(c, panelHeight)
                 Panel.LANGUAGES -> LanguagesPanel(c, panelHeight)
                 Panel.QUICK -> QuickPanel(c, panelHeight)
+                Panel.TEXT -> TextPanel(c, panelHeight)
             }
         }
         val toast = c.toast
@@ -201,6 +210,32 @@ private fun KeyboardBody(c: KeyboardController, landscape: Boolean) {
         }
     }
 }
+
+/** Obraz tła klawiatury (z ustawień motywu), przyciemniony dla czytelności klawiszy. */
+@Composable
+private fun rememberKeyboardBackground(ctx: android.content.Context, enabled: Boolean, version: Long): androidx.compose.ui.graphics.ImageBitmap? =
+    androidx.compose.runtime.remember(enabled, version) {
+        if (!enabled) null
+        else runCatching {
+            val f = java.io.File(ctx.filesDir, BACKGROUND_FILE)
+            android.graphics.BitmapFactory.decodeFile(f.absolutePath)?.asImageBitmap()
+        }.getOrNull()
+    }
+
+const val BACKGROUND_FILE = "keyboard_background.jpg"
+
+private fun Modifier.backgroundImage(img: androidx.compose.ui.graphics.ImageBitmap?, dim: Int): Modifier =
+    if (img == null) this else this.drawBehind {
+        val scale = maxOf(size.width / img.width, size.height / img.height)
+        val w = img.width * scale
+        val h = img.height * scale
+        drawImage(
+            img,
+            dstOffset = androidx.compose.ui.unit.IntOffset(((size.width - w) / 2).toInt(), ((size.height - h) / 2).toInt()),
+            dstSize = androidx.compose.ui.unit.IntSize(w.toInt(), h.toInt()),
+        )
+        drawRect(androidx.compose.ui.graphics.Color.Black.copy(alpha = dim / 100f))
+    }
 
 @Composable
 fun Keys(c: KeyboardController, landscape: Boolean) {
@@ -236,16 +271,17 @@ private class ControllerActions(val c: KeyboardController) : KeyActions {
     override fun deleteDown() = c.onDelete()
     override fun deleteRepeat() = c.onDelete(repeat = true)
     override fun longPress(key: Key): Boolean = when (key.type) {
-        KeyType.SPACE -> {
-            if (c.settings.spaceLongPressPicker) {
-                if (c.settings.languages.size > 1) c.openPanel(Panel.LANGUAGES) else c.showImePicker()
-                true
-            } else false
-        }
+        KeyType.SPACE -> if (c.settings.spaceLongPress != GestureAction.NONE) {
+            c.runGesture(c.settings.spaceLongPress)
+            true
+        } else false
         KeyType.SHIFT -> { c.lockShift(); true }
         KeyType.SYMBOLS -> { c.switchMode(KeyboardMode.NUMBER); true }
         KeyType.LANGUAGE -> { c.openPanel(Panel.LANGUAGES); true }
-        KeyType.ENTER -> { c.openPanel(Panel.EMOJI); true }
+        KeyType.ENTER -> if (c.settings.enterLongPress != GestureAction.NONE) {
+            c.runGesture(c.settings.enterLongPress)
+            true
+        } else false
         else -> false
     }
 
@@ -255,6 +291,8 @@ private class ControllerActions(val c: KeyboardController) : KeyActions {
     override fun hide() = c.hide()
     override fun tick() = c.feedback.tick()
     override fun long() = c.feedback.long()
+    override fun glide(path: List<Pt>, centers: Map<Char, Pt>, keyW: Float) = c.onGlide(path, centers, keyW)
+    override fun gesture(action: GestureAction) = c.runGesture(action)
 }
 
 /** Tryb jednej ręki: klawisze zwężone, obok kolumna z przełącznikami. */
@@ -343,6 +381,7 @@ private fun ToolbarButton(c: KeyboardController, item: ToolbarItem) {
         ToolbarItem.CLIPBOARD -> StripIcon(Icons.Rounded.ContentPaste, tr("Schowek")) { c.openPanel(Panel.CLIPBOARD) }
         ToolbarItem.EMOJI -> StripIcon(Icons.Rounded.EmojiEmotions, tr("Emoji")) { c.openPanel(Panel.EMOJI) }
         ToolbarItem.EDIT -> StripIcon(Icons.Rounded.OpenWith, tr("Kursor i zaznaczanie")) { c.openPanel(Panel.EDIT) }
+        ToolbarItem.TEXT_TOOLS -> StripIcon(Icons.Rounded.TextFields, tr("Narzędzia tekstu"), active = c.fancy != null) { c.openPanel(Panel.TEXT) }
         ToolbarItem.VOICE -> StripIcon(Icons.Rounded.Mic, tr("Dyktowanie")) { c.openPanel(Panel.VOICE) }
         ToolbarItem.TRANSLATE -> StripIcon(Icons.Rounded.Translate, tr("Tłumacz")) { c.openInternal(InternalTarget.TRANSLATE) }
         ToolbarItem.ONE_HANDED -> StripIcon(Icons.Rounded.SwapHoriz, tr("Jedna ręka"), active = s.oneHanded != OneHanded.OFF) { c.toggleOneHanded() }
@@ -362,12 +401,14 @@ private fun SuggestionStrip(c: KeyboardController) {
     Row(Modifier.fillMaxSize(), verticalAlignment = Alignment.CenterVertically) {
         StripIcon(if (c.incognito) Icons.Rounded.VisibilityOff else Icons.Rounded.Apps, tr("Narzędzia")) { c.toolbarOpen = true }
         // Kolejność na pasku: [drugi] [najlepszy] [trzeci] – najlepszy na środku.
-        val slots = when (items.size) {
-            0 -> emptyList()
-            1 -> listOf<Suggestion?>(null, items[0], null)
-            2 -> listOf(items[1], items[0], null)
+        val slots: List<Suggestion?> = when {
+            items.isEmpty() -> emptyList()
+            c.settings.suggestionCount >= 5 -> listOf(items.getOrNull(3), items.getOrNull(1), items[0], items.getOrNull(2), items.getOrNull(4))
+            items.size == 1 -> listOf(null, items[0], null)
+            items.size == 2 -> listOf(items[1], items[0], null)
             else -> listOf(items[1], items[0], items[2])
         }
+        val center = slots.size / 2
         Row(Modifier.weight(1f).fillMaxHeight(), verticalAlignment = Alignment.CenterVertically) {
             slots.forEachIndexed { i, sug ->
                 Box(
@@ -383,18 +424,18 @@ private fun SuggestionStrip(c: KeyboardController) {
                     contentAlignment = Alignment.Center,
                 ) {
                     if (sug != null) {
-                        val strong = i == 1 && (auto != null && sug.text == auto.text || c.suggestions.typedValid || sug.kind == SuggestionKind.PREDICTION)
+                        val strong = i == center && (auto != null && sug.text == auto.text || c.suggestions.typedValid || sug.kind == SuggestionKind.PREDICTION)
                         Text(
                             sug.display,
                             color = if (sug.kind == SuggestionKind.TYPED) colors.textDim else colors.text,
-                            fontSize = 16.sp,
+                            fontSize = if (slots.size > 3) 14.sp else 16.sp,
                             fontWeight = if (strong) FontWeight.Bold else FontWeight.Normal,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis,
                             textAlign = TextAlign.Center,
                             modifier = Modifier.padding(horizontal = 4.dp),
                         )
-                        if (i == 1 && auto != null && sug.text == auto.text) {
+                        if (i == center && auto != null && sug.text == auto.text) {
                             // Kropka pod słowem: to wstawi spacja (autokorekta).
                             Box(Modifier.align(Alignment.BottomCenter).padding(bottom = 5.dp).size(4.dp).clip(CircleShape).background(colors.accent))
                         }
@@ -443,6 +484,7 @@ private fun PanelBar(c: KeyboardController) {
         Panel.VOICE -> tr("Dyktowanie")
         Panel.LANGUAGES -> tr("Języki")
         Panel.QUICK -> tr("Szybkie ustawienia")
+        Panel.TEXT -> tr("Narzędzia tekstu")
         Panel.KEYS -> ""
     }
     Row(Modifier.fillMaxSize().padding(horizontal = 4.dp), verticalAlignment = Alignment.CenterVertically) {

@@ -36,6 +36,7 @@ import androidx.compose.material.icons.rounded.SpaceBar
 import androidx.compose.material.icons.rounded.SwapHoriz
 import androidx.compose.material.icons.rounded.Translate
 import androidx.compose.material.icons.rounded.Tune
+import androidx.compose.material.icons.rounded.TextFields
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Switch
@@ -60,6 +61,13 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.blacksingularities.openkeyboard.LocalSystem
 import com.blacksingularities.openkeyboard.data.KeyStyle
+import com.blacksingularities.openkeyboard.data.GestureAction
+import com.blacksingularities.openkeyboard.data.KeyFont
+import androidx.compose.material.icons.rounded.Image
+import androidx.compose.material.icons.rounded.Contrast
+import androidx.compose.material.icons.rounded.Opacity
+import androidx.compose.material.icons.rounded.FontDownload
+import androidx.compose.material.icons.rounded.Palette
 import com.blacksingularities.openkeyboard.data.KeyboardSettings
 import com.blacksingularities.openkeyboard.data.Languages
 import com.blacksingularities.openkeyboard.data.ToolbarItem
@@ -289,6 +297,7 @@ fun ThemeSheet(vm: AppViewModel) {
                 }
             }
         }
+        CustomThemeSection(vm)
         Group(tr("Kolor akcentu")) {
             Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(10.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 KeyboardThemes.accents.forEachIndexed { i, c ->
@@ -437,6 +446,7 @@ private fun toolbarIcon(t: ToolbarItem): ImageVector = when (t) {
     ToolbarItem.CLIPBOARD -> Icons.Rounded.ContentPaste
     ToolbarItem.EMOJI -> Icons.Rounded.EmojiEmotions
     ToolbarItem.EDIT -> Icons.Rounded.OpenWith
+    ToolbarItem.TEXT_TOOLS -> Icons.Rounded.TextFields
     ToolbarItem.VOICE -> Icons.Rounded.Mic
     ToolbarItem.TRANSLATE -> Icons.Rounded.Translate
     ToolbarItem.ONE_HANDED -> Icons.Rounded.SwapHoriz
@@ -449,6 +459,7 @@ private fun toolbarName(t: ToolbarItem): String = when (t) {
     ToolbarItem.CLIPBOARD -> tr("Schowek")
     ToolbarItem.EMOJI -> tr("Emoji")
     ToolbarItem.EDIT -> tr("Kursor i zaznaczanie")
+    ToolbarItem.TEXT_TOOLS -> tr("Narzędzia tekstu")
     ToolbarItem.VOICE -> tr("Dyktowanie")
     ToolbarItem.TRANSLATE -> tr("Tłumacz")
     ToolbarItem.ONE_HANDED -> tr("Jedna ręka")
@@ -532,4 +543,202 @@ fun AboutSheet(vm: AppViewModel) {
         )
         Spacer(Modifier.height(12.dp))
     }
+}
+
+// ───────────────────────── gesty ─────────────────────────
+
+fun gestureName(a: GestureAction): String = when (a) {
+    GestureAction.NONE -> tr("Nic")
+    GestureAction.CURSOR -> tr("Przesuwanie kursora")
+    GestureAction.LANGUAGE -> tr("Następny język")
+    GestureAction.HIDE -> tr("Schowaj klawiaturę")
+    GestureAction.DELETE_WORD -> tr("Usuń słowo")
+    GestureAction.SHIFT -> tr("Caps Lock")
+    GestureAction.EMOJI -> tr("Emoji")
+    GestureAction.CLIPBOARD -> tr("Schowek")
+    GestureAction.VOICE -> tr("Dyktowanie")
+    GestureAction.TEXT_TOOLS -> tr("Narzędzia tekstu")
+    GestureAction.LANGUAGES -> tr("Lista języków")
+    GestureAction.IME_PICKER -> tr("Wybór klawiatury")
+    GestureAction.NUMPAD -> tr("Klawiatura numeryczna")
+    GestureAction.UNDO -> tr("Cofnij")
+}
+
+@Composable
+private fun GestureRow(
+    icon: ImageVector,
+    title: String,
+    value: GestureAction,
+    options: List<GestureAction>,
+    onPick: (GestureAction) -> Unit,
+) {
+    Column(Modifier.fillMaxWidth().padding(horizontal = 10.dp, vertical = 6.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            RowIcon(icon)
+            Column(Modifier.padding(horizontal = 12.dp)) {
+                Text(title, fontSize = 14.sp)
+                Text(gestureName(value), fontSize = 11.sp, color = Palette.TextDim)
+            }
+        }
+        Row(
+            Modifier.padding(start = 44.dp, top = 6.dp).horizontalScroll(rememberScrollState()),
+            horizontalArrangement = Arrangement.spacedBy(5.dp),
+        ) {
+            for (o in options) Chip(gestureName(o), o == value) { onPick(o) }
+        }
+    }
+}
+
+@Composable
+fun GesturesSheet(vm: AppViewModel) {
+    val s = vm.settings
+    val all = GestureAction.entries.filter { it != GestureAction.CURSOR }
+    Panel(tr("Gesty"), onClose = { vm.sheet = null }) {
+        Text(
+            tr("Każdemu gestowi możesz przypisać własną czynność. Pisanie gestem (przeciąganie po literach) działa niezależnie – włączysz je w sekcji pisania."),
+            color = Palette.TextDim,
+            fontSize = 12.sp,
+            lineHeight = 16.sp,
+            modifier = Modifier.padding(horizontal = 6.dp),
+        )
+        Group(null) {
+            GestureRow(Icons.Rounded.SwapHoriz, tr("Spacja – przesunięcie w bok"), s.spaceSwipe, listOf(GestureAction.CURSOR, GestureAction.LANGUAGE, GestureAction.NONE)) { v -> vm.update { it.copy(spaceSwipe = v) } }
+            GestureRow(Icons.Rounded.KeyboardArrowUp, tr("Spacja – przesunięcie w górę"), s.spaceSwipeUp, all) { v -> vm.update { it.copy(spaceSwipeUp = v) } }
+            GestureRow(Icons.Rounded.Tune, tr("Spacja – przytrzymanie"), s.spaceLongPress, all) { v -> vm.update { it.copy(spaceLongPress = v) } }
+            GestureRow(Icons.Rounded.KeyboardArrowDown, tr("Przeciągnięcie w dół po klawiszach"), s.swipeDown, all) { v -> vm.update { it.copy(swipeDown = v) } }
+            GestureRow(Icons.Rounded.EmojiEmotions, tr("Enter – przytrzymanie"), s.enterLongPress, all) { v -> vm.update { it.copy(enterLongPress = v) } }
+            GestureRow(Icons.Rounded.Add, tr("Przecinek – przytrzymanie"), s.commaLongPress, all) { v -> vm.update { it.copy(commaLongPress = v) } }
+        }
+        Text(
+            tr("Przytrzymanie przecinka ustawione na „Nic” pokazuje znaki ; : „ ”."),
+            color = Palette.TextDim,
+            fontSize = 11.sp,
+            modifier = Modifier.padding(horizontal = 6.dp),
+        )
+        Spacer(Modifier.height(12.dp))
+    }
+}
+
+// ───────────────────────── własny motyw ─────────────────────────
+
+private enum class ColorSlot { BG, KEY, TEXT, ACCENT }
+
+@Composable
+fun CustomThemeSection(vm: AppViewModel) {
+    val s = vm.settings
+    val sys = LocalSystem.current
+    val custom = s.theme == "custom"
+    var slot by remember { mutableStateOf(ColorSlot.BG) }
+    Group(tr("Własny motyw")) {
+        Row(Modifier.fillMaxWidth().padding(10.dp), verticalAlignment = Alignment.CenterVertically) {
+            Text(
+                if (custom) tr("Aktywny – zmieniaj kolory poniżej") else tr("Ułóż własne kolory klawiatury i obraz tła"),
+                fontSize = 12.sp,
+                color = Palette.TextDim,
+                modifier = Modifier.weight(1f),
+            )
+            if (!custom) PillButton(tr("Użyj")) { vm.update { it.copy(theme = "custom") } }
+        }
+        if (custom) {
+            Row(Modifier.padding(horizontal = 10.dp).horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                for (sl in ColorSlot.entries) {
+                    val argb = slotColor(s, sl)
+                    val name = when (sl) {
+                        ColorSlot.BG -> tr("Tło")
+                        ColorSlot.KEY -> tr("Klawisze")
+                        ColorSlot.TEXT -> tr("Znaki")
+                        ColorSlot.ACCENT -> tr("Akcent")
+                    }
+                    Row(
+                        Modifier
+                            .clip(RoundedCornerShape(50))
+                            .background(if (sl == slot) Color.White else Color.White.copy(alpha = 0.08f))
+                            .clickable { slot = sl }
+                            .padding(horizontal = 10.dp, vertical = 6.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Box(Modifier.size(14.dp).clip(CircleShape).background(Color(argb.toInt())).border(1.dp, Color.Gray, CircleShape))
+                        Spacer(Modifier.width(6.dp))
+                        Text(name, fontSize = 12.sp, color = if (sl == slot) Palette.Ink else Color.White)
+                    }
+                }
+            }
+            val current = slotColor(s, slot)
+            fun setColor(v: Long) = vm.update {
+                when (slot) {
+                    ColorSlot.BG -> it.copy(customBg = v)
+                    ColorSlot.KEY -> it.copy(customKey = v)
+                    ColorSlot.TEXT -> it.copy(customText = v)
+                    ColorSlot.ACCENT -> it.copy(customAccent = v)
+                }
+            }
+            val swatches = listOf(
+                0xFF000000, 0xFF111111, 0xFF1E1E1E, 0xFF2B2B2B, 0xFF3A3A3A, 0xFFFFFFFF, 0xFFECEFF1, 0xFFF5EEDC,
+                0xFF0D1B2A, 0xFF1B263B, 0xFF14213D, 0xFF003049, 0xFF2D0A31, 0xFF3C1642, 0xFF1F2F16, 0xFF0B3D2E,
+                0xFFE63946, 0xFFF4A261, 0xFFE9C46A, 0xFF2A9D8F, 0xFF64B5F6, 0xFFBA68C8, 0xFFF06292, 0xFF81C784,
+            )
+            Row(Modifier.padding(10.dp).horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                for (sw in swatches) {
+                    Box(
+                        Modifier
+                            .size(28.dp)
+                            .clip(CircleShape)
+                            .background(if (sw == current) Color.White else Color.White.copy(alpha = 0.15f))
+                            .clickable { setColor(sw) }
+                            .padding(3.dp)
+                            .clip(CircleShape)
+                            .background(Color(sw.toInt())),
+                    )
+                }
+            }
+            val hsv = remember(current) { FloatArray(3).also { android.graphics.Color.colorToHSV(current.toInt(), it) } }
+            fun fromHsv(h: Float, sat: Float, v: Float): Long = android.graphics.Color.HSVToColor(floatArrayOf(h, sat, v)).toLong() and 0xFFFFFFFFL
+            SliderRow(Icons.Rounded.Palette, tr("Barwa"), hsv[0].toInt(), 0..360, 1, { "$it°" }) { v -> setColor(fromHsv(v.toFloat(), hsv[1], hsv[2])) }
+            SliderRow(Icons.Rounded.Palette, tr("Nasycenie"), (hsv[1] * 100).toInt(), 0..100, 1, { "$it%" }) { v -> setColor(fromHsv(hsv[0], v / 100f, hsv[2])) }
+            SliderRow(Icons.Rounded.Palette, tr("Jasność"), (hsv[2] * 100).toInt(), 0..100, 1, { "$it%" }) { v -> setColor(fromHsv(hsv[0], hsv[1], v / 100f)) }
+        }
+        ActionRow(
+            Icons.Rounded.Image,
+            if (s.bgImage) tr("Zmień obraz tła") else tr("Obraz w tle klawiatury"),
+            tr("Twoje zdjęcie pod klawiszami (przyciemnione dla czytelności)"),
+        ) { sys.pickBackground() }
+        if (s.bgImage) {
+            SliderRow(Icons.Rounded.Contrast, tr("Przyciemnienie obrazu"), s.bgDim, 0..90, 1, { "$it%" }) { v -> vm.update { it.copy(bgDim = v) } }
+            ActionRow(Icons.Rounded.Delete, tr("Usuń obraz tła"), null, danger = true) { vm.update { it.copy(bgImage = false) } }
+        }
+        SliderRow(Icons.Rounded.Opacity, tr("Krycie klawiszy"), s.keyOpacity, 0..100, 5, { "$it%" }) { v -> vm.update { it.copy(keyOpacity = v) } }
+    }
+    Group(null) {
+        CompactChoice(
+            Icons.Rounded.FontDownload,
+            tr("Czcionka klawiszy"),
+            KeyFont.entries,
+            s.keyFont,
+            {
+                when (it) {
+                    KeyFont.DEFAULT -> tr("Systemowa")
+                    KeyFont.SANS -> tr("Bezszeryfowa")
+                    KeyFont.SERIF -> tr("Szeryfowa")
+                    KeyFont.MONO -> tr("Maszynowa")
+                    KeyFont.CONDENSED -> tr("Odręczna")
+                }
+            },
+            short = {
+                when (it) {
+                    KeyFont.DEFAULT -> "Aa"
+                    KeyFont.SANS -> "Sans"
+                    KeyFont.SERIF -> "Serif"
+                    KeyFont.MONO -> "Mono"
+                    KeyFont.CONDENSED -> "✎"
+                }
+            },
+        ) { v -> vm.update { it.copy(keyFont = v) } }
+    }
+}
+
+private fun slotColor(s: KeyboardSettings, sl: ColorSlot): Long = when (sl) {
+    ColorSlot.BG -> s.customBg
+    ColorSlot.KEY -> s.customKey
+    ColorSlot.TEXT -> s.customText
+    ColorSlot.ACCENT -> s.customAccent
 }

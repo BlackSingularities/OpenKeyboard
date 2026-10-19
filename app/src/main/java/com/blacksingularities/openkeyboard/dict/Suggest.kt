@@ -132,6 +132,12 @@ object Suggest {
         // Autokorekta: tylko gdy wpisane słowo nie istnieje, a kandydat jest bliski i częsty.
         var auto: Suggestion? = null
         val top = ranked.firstOrNull()
+        // Forma ze słownika różni się tylko wielkością liter („i” → „I”, „warszawa” → „Warszawa”).
+        if (mode != Autocorrect.OFF && typedValid && top != null && top.word != typed && top.word.equals(typed, ignoreCase = true) &&
+            top.word.any { it.isUpperCase() } && typed.none { it.isUpperCase() }
+        ) {
+            auto = Suggestion(top.word, SuggestionKind.WORD)
+        }
         if (mode != Autocorrect.OFF && !typedValid && top != null && top.dist >= 0 && key.length >= 2 && !(typed.length > 1 && typed.all { it.isUpperCase() })) {
             val allowed = when (mode) {
                 Autocorrect.GENTLE -> top.dist <= 0.1f || (top.dist <= 1f && key.length >= 4)
@@ -139,9 +145,12 @@ object Suggest {
                 Autocorrect.AGGRESSIVE -> true
                 Autocorrect.OFF -> false
             }
-            if (allowed) auto = Suggestion(applyCase(typed, top.word), SuggestionKind.WORD)
+            if (allowed && !UserModel.isRejected(typed, top.word)) auto = Suggestion(applyCase(typed, top.word), SuggestionKind.WORD)
         }
-        if (auto != null) {
+        if (auto != null && auto.text.equals(typed, ignoreCase = true)) {
+            items.removeAll { it.text == auto.text }
+            items.add(0, auto)
+        } else if (auto != null) {
             items.removeAll { it.text == auto.text }
             items.add(0, auto)
             // Wpisane słowo zostaje do wyboru – żeby można było odrzucić poprawkę.

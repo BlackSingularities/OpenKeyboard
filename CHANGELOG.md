@@ -1,5 +1,14 @@
 # Zmiany
 
+## 1.1.0
+- **Pisanie gestem** – przeciągnij palcem po literach słowa, ze śladem palca, kontekstem poprzedniego słowa i polskimi znakami bez przytrzymania („zolw” → „żółw”). Kolejny gest sam dodaje spację.
+- **Inteligencja**: wykrywanie języka, w którym właśnie piszesz (pierwszeństwo jego słów), nauka z cofniętych poprawek (Backspace po autokorekcie zapamiętuje Twoje słowo), poprawianie wielkości liter („i” → „I”).
+- **Narzędzia tekstu**: wielkość liter (zaznaczenia lub słowa), 13 ozdobnych stylów pisania (𝐁𝐨𝐥𝐝, 𝘐𝘵𝘢𝘭𝘪𝘤, 𝓢𝓬𝓻𝓲𝓹𝓽, 𝔻𝕠𝕦𝕓𝕝𝕖, Ⓒⓘⓡⓒⓛⓔ, ꜱᴍᴀʟʟ…), data i godzina, licznik znaków i słów, czyszczenie pola.
+- **Własny motyw**: dowolne kolory (barwa, nasycenie, jasność, gotowe próbki), obraz w tle klawiatury z przyciemnieniem, krycie klawiszy, 5 czcionek.
+- **Gesty do konfiguracji**: spacja w bok / w górę / przytrzymanie, przeciągnięcie w dół, przytrzymanie Enter i przecinka – 14 czynności do wyboru.
+- **Klawiatura dzielona** w poziomie (albo zawsze) z regulowaną przerwą, 3 lub 5 podpowiedzi w pasku, typograficzne cudzysłowy, spacja po „, ! ?”.
+- Poprawka: zamknięcie klawiatury przy przełączaniu na inną mogło zakończyć się błędem aplikacji.
+
 ## 1.0.0
 Pierwsze wydanie OpenKeyboard.
 

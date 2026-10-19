@@ -34,6 +34,7 @@ private data class UserData(
     val shortcuts: List<Shortcut> = emptyList(),
     val stats: Stats = Stats(),
     val emojiRecent: List<String> = emptyList(),
+    val rejected: Set<String> = emptySet(),
 )
 
 /**
@@ -52,6 +53,8 @@ object UserModel {
     private val bigrams = HashMap<String, HashMap<String, Int>>()
     private val blocked = HashSet<String>()
     private val normCache = HashMap<String, String>()
+    /** Poprawki cofnięte przez użytkownika: „wpisane\u0001poprawione”. */
+    private val rejected = HashSet<String>()
     private val _shortcuts = MutableStateFlow<List<Shortcut>>(emptyList())
     val shortcuts: StateFlow<List<Shortcut>> get() = _shortcuts
     private val _stats = MutableStateFlow(Stats())
@@ -81,6 +84,7 @@ object UserModel {
                 words.putAll(data.words)
                 data.bigrams.forEach { (k, v) -> bigrams[k] = HashMap(v) }
                 blocked.addAll(data.blocked)
+                rejected.addAll(data.rejected)
                 _shortcuts.value = data.shortcuts
                 _stats.value = data.stats
                 _emojiRecent.value = data.emojiRecent
@@ -91,7 +95,7 @@ object UserModel {
     }
 
     private fun snapshot(): UserData = synchronized(this) {
-        UserData(HashMap(words), bigrams.mapValues { HashMap(it.value) }, HashSet(blocked), _shortcuts.value, _stats.value, _emojiRecent.value)
+        UserData(HashMap(words), bigrams.mapValues { HashMap(it.value) }, HashSet(blocked), _shortcuts.value, _stats.value, _emojiRecent.value, HashSet(rejected))
     }
 
     private fun scheduleSave() {
@@ -112,6 +116,18 @@ object UserModel {
     }
 
     fun count(word: String): Int = synchronized(this) { words[word] ?: words[word.lowercase()] ?: 0 }
+
+    /** Użytkownik cofnął poprawkę – następnym razem zostaw wpisane słowo. */
+    fun rejectCorrection(typed: String, corrected: String) {
+        synchronized(this) {
+            rejected.add(typed.lowercase() + "\u0001" + corrected.lowercase())
+            words[typed] = maxOf(words[typed] ?: 0, 2)
+        }
+        scheduleSave()
+    }
+
+    fun isRejected(typed: String, corrected: String): Boolean =
+        synchronized(this) { (typed.lowercase() + "\u0001" + corrected.lowercase()) in rejected }
 
     fun isBlocked(word: String): Boolean = synchronized(this) { word.lowercase() in blocked }
 
@@ -224,6 +240,7 @@ object UserModel {
             words.clear(); words.putAll(data.words)
             bigrams.clear(); data.bigrams.forEach { (k, v) -> bigrams[k] = HashMap(v) }
             blocked.clear(); blocked.addAll(data.blocked)
+            rejected.clear(); rejected.addAll(data.rejected)
         }
         _shortcuts.value = data.shortcuts
         _stats.value = data.stats

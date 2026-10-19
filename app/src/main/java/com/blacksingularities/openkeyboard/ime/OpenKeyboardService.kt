@@ -119,13 +119,16 @@ class OpenKeyboardService : InputMethodService(), LifecycleOwner, ViewModelStore
 
     override fun onStartInputView(info: EditorInfo, restarting: Boolean) {
         super.onStartInputView(info, restarting)
+        if (destroyed) return
         lifecycleRegistry.handleLifecycleEvent(Lifecycle.Event.ON_RESUME)
         controller.onStartInput(info, restarting)
     }
 
     override fun onFinishInputView(finishingInput: Boolean) {
-        controller.onFinishInput()
-        lifecycleRegistry.handleLifecycleEvent(Lifecycle.Event.ON_PAUSE)
+        if (!destroyed) {
+            controller.onFinishInput()
+            lifecycleRegistry.handleLifecycleEvent(Lifecycle.Event.ON_PAUSE)
+        }
         super.onFinishInputView(finishingInput)
     }
 
@@ -158,12 +161,17 @@ class OpenKeyboardService : InputMethodService(), LifecycleOwner, ViewModelStore
         rootView?.requestLayout()
     }
 
+    /** Po zniszczeniu system może jeszcze wywołać onFinishInputView – wtedy nic nie robimy. */
+    private var destroyed = false
+
     override fun onDestroy() {
+        // Najpierw system kończy pole (onFinishInputView), dopiero potem sprzątamy.
+        super.onDestroy()
+        destroyed = true
         lifecycleRegistry.handleLifecycleEvent(Lifecycle.Event.ON_DESTROY)
         ClipboardHistory.detach()
         controller.destroy()
         store.clear()
         rootView = null
-        super.onDestroy()
     }
 }

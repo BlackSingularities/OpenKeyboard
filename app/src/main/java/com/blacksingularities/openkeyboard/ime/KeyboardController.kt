@@ -28,6 +28,11 @@ import com.blacksingularities.openkeyboard.emoji.EmojiData
 import com.blacksingularities.openkeyboard.features.Calculator
 import com.blacksingularities.openkeyboard.features.ClipboardHistory
 import com.blacksingularities.openkeyboard.features.Translator
+import com.blacksingularities.openkeyboard.features.FancyStyle
+import com.blacksingularities.openkeyboard.features.TextTools
+import com.blacksingularities.openkeyboard.data.GestureAction
+import com.blacksingularities.openkeyboard.dict.Glide
+import com.blacksingularities.openkeyboard.dict.Pt
 import com.blacksingularities.openkeyboard.i18n.tr
 import com.blacksingularities.openkeyboard.keyboard.FieldKind
 import com.blacksingularities.openkeyboard.keyboard.Key
@@ -50,7 +55,7 @@ import kotlin.math.hypot
 enum class ShiftState { OFF, ONESHOT, LOCKED }
 
 /** Co pokazuje klawiatura pod paskiem podpowiedzi. */
-enum class Panel { KEYS, EMOJI, CLIPBOARD, EDIT, VOICE, LANGUAGES, QUICK }
+enum class Panel { KEYS, EMOJI, CLIPBOARD, EDIT, TEXT, VOICE, LANGUAGES, QUICK }
 
 /** Pisanie do pola w samej klawiaturze (wyszukiwanie emoji, tłumacz) zamiast do aplikacji. */
 enum class InternalTarget { EMOJI_SEARCH, TRANSLATE }
@@ -96,6 +101,14 @@ class KeyboardController(val service: OpenKeyboardService) {
     var floatingOffset by mutableStateOf(Offset.Zero)
     var selecting by mutableStateOf(false)
     var voice = VoiceInput(this)
+    /** Ozdobny styl wpisywanych liter (𝐁𝐨𝐥𝐝, 𝓢𝓬𝓻𝓲𝓹𝓽…) – null = zwykły tekst. */
+    var fancy by mutableStateOf<FancyStyle?>(null)
+    /** Język wykryty w ostatnio pisanych słowach (pierwszeństwo w podpowiedziach). */
+    var detectedLanguage by mutableStateOf<String?>(null)
+        private set
+    private val recentWords = ArrayDeque<String>()
+    /** Słowo wpisane gestem czeka w polu – następny gest albo litera doda przed sobą spację. */
+    private var glidePending = false
 
     private var editorInfo: EditorInfo? = null
     private val composing = StringBuilder()
@@ -285,8 +298,37 @@ class KeyboardController(val service: OpenKeyboardService) {
             return
         }
         val ic = ic ?: return
-        val text = raw
-        val ch = text.firstOrNull() ?: return
+        var text = raw
+        val ch0 = text.firstOrNull() ?: return
+        if (glidePending && composing.isNotEmpty() && ch0.isLetter()) {
+            commitComposing(autocorrect = false, separator = " ")
+        }
+        glidePending = false
+        // Ozdobny styl: litery i cyfry zamieniane od razu, bez podpowiedzi.
+        val style = fancy
+        if (style != null && text.length == 1 && (ch0.isLetterOrDigit() || ch0 == ' ')) {
+            if (composing.isNotEmpty()) commitComposing(autocorrect = false)
+            ic.commitText(TextTools.style(text, style), 1)
+            if (shift == ShiftState.ONESHOT) shift = ShiftState.OFF
+            selfEdit()
+            return
+        }
+        // Typograficzne cudzysłowy.
+        if (settings.smartQuotes && composing.isEmpty() && (text == "\"" || text == "'")) {
+            val prevCh = ic.getTextBeforeCursor(1, 0)?.toString().orEmpty()
+            val opening = prevCh.isEmpty() || prevCh[0].isWhitespace() || prevCh[0] in "([{„“‘"
+            text = if (text == "\"") {
+                if (opening) (if (activeLanguage in setOf("pl", "de", "cs", "sk", "hu", "ro", "hr", "lt")) "„" else "“") else "”"
+            } else {
+                if (opening) "‘" else "’"
+            }
+        }
+        val ch = text.first()
+        // Spacja po przecinku, wykrzykniku itp., gdy od razu pisze się dalej.
+        if (settings.autoSpaceAfterPunct && ch.isLetter() && composing.isEmpty() && fieldKind == FieldKind.TEXT) {
+            val before2 = ic.getTextBeforeCursor(2, 0)?.toString().orEmpty()
+            if (before2.length == 2 && before2[1] in ",;!?" && before2[0].isLetter()) ic.commitText(" ", 1)
+        }
         val wordChar = text.length == 1 && (ch.isLetter() || (composing.isNotEmpty() && (ch == '\'' || ch == '’' || ch == '-')))
         if (wordChar && wordSuggestions) {
             if (composing.isEmpty()) {
@@ -400,6 +442,9 @@ class KeyboardController(val service: OpenKeyboardService) {
                 composing.append(typed)
                 ic.setComposingText(composing, 1)
                 keepTyped = true
+                if (settings.learnFromUndo && !incognito && typed.equals(corrected, ignoreCase = true).not()) {
+                    UserModel.rejectCorrection(typed, corrected)
+                }
                 lastCorrection = null
                 selfEdit()
                 refreshSuggestions()
@@ -537,6 +582,7 @@ class KeyboardController(val service: OpenKeyboardService) {
             if (settings.languages.any { Dictionaries.get(it)?.contains(lower) == true }) lower else word
         } else word
         UserModel.learn(stored, prev)
+        if (settings.autoLanguage) detectLanguage(word)
         UserModel.bumpStats { it.copy(words = it.words + 1) }
     }
 
@@ -623,9 +669,135 @@ class KeyboardController(val service: OpenKeyboardService) {
 
     // ───────────────────────── podpowiedzi ─────────────────────────
 
-    private fun computeSuggestions(typed: String): Suggestions {
-        val langs = if (settings.multilingual) settings.languages else listOf(settings.activeLanguage)
-        return Suggest.suggest(typed, previousWordSafe, langs, settings.activeLanguage, settings.autocorrect, proximity)
+    private val suggestLangs: List<String>
+        get() = if (settings.multilingual) settings.languages else listOf(settings.activeLanguage)
+
+    /** Język z pierwszeństwem: wykryty w ostatnich słowach albo wybrany. */
+    private val primaryLanguage: String
+        get() = detectedLanguage?.takeIf { settings.autoLanguage && settings.multilingual && it in settings.languages } ?: settings.activeLanguage
+
+    private fun computeSuggestions(typed: String): Suggestions =
+        Suggest.suggest(typed, previousWordSafe, suggestLangs, primaryLanguage, settings.autocorrect, proximity, settings.suggestionCount.coerceIn(3, 5))
+
+    /** Który z włączonych języków zna najwięcej z ostatnich słów. */
+    private fun detectLanguage(word: String) {
+        recentWords.addLast(word)
+        while (recentWords.size > 6) recentWords.removeFirst()
+        if (settings.languages.size < 2) return
+        var best: String? = null
+        var bestScore = 0
+        for (l in settings.languages) {
+            val wl = Dictionaries.get(l) ?: continue
+            val score = recentWords.count { wl.contains(it) && settings.languages.none { o -> o != l && Dictionaries.get(o)?.contains(it) == true } }
+            if (score > bestScore) {
+                bestScore = score
+                best = l
+            }
+        }
+        if (best != null && bestScore >= 2) detectedLanguage = best
+    }
+
+    // ───────────────────────── pisanie gestem ─────────────────────────
+
+    fun onGlide(path: List<Pt>, centers: Map<Char, Pt>, keyW: Float) {
+        val ic = ic ?: return
+        if (!wordSuggestions) return
+        if (composing.isNotEmpty()) commitComposing(autocorrect = !glidePending, separator = " ")
+        else {
+            val before = ic.getTextBeforeCursor(1, 0)?.toString().orEmpty()
+            if (before.isNotEmpty() && (before[0].isLetterOrDigit() || before[0] in ".,!?:;")) ic.commitText(" ", 1)
+        }
+        val prev = previousWord()
+        val shifted = shift != ShiftState.OFF
+        val lock = shift == ShiftState.LOCKED
+        scope.launch {
+            val words = withContext(Dispatchers.Default) {
+                Glide.decode(path, centers, keyW, suggestLangs, primaryLanguage, prev, settings.suggestionCount.coerceIn(3, 5))
+            }
+            if (words.isEmpty()) {
+                showToast(tr("Nie rozpoznano słowa"))
+                return@launch
+            }
+            fun cased(w: String) = when {
+                lock -> w.uppercase()
+                shifted -> w.replaceFirstChar { it.uppercaseChar() }
+                else -> w
+            }
+            val best = cased(words.first())
+            composing.clear()
+            composing.append(best)
+            keepTyped = true
+            glidePending = true
+            this@KeyboardController.ic?.setComposingText(composing, 1)
+            selfEdit()
+            if (shift == ShiftState.ONESHOT) shift = ShiftState.OFF
+            suggestions = Suggestions(words.map { Suggestion(cased(it), SuggestionKind.WORD) }, null, true)
+            suggestionsFor = best
+            if (!incognito) UserModel.bumpStats { it.copy(charsSaved = it.charsSaved + best.length) }
+        }
+    }
+
+    // ───────────────────────── gesty ─────────────────────────
+
+    fun runGesture(a: GestureAction) {
+        when (a) {
+            GestureAction.NONE, GestureAction.CURSOR -> {}
+            GestureAction.LANGUAGE -> nextLanguage()
+            GestureAction.HIDE -> hide()
+            GestureAction.DELETE_WORD -> deleteWord()
+            GestureAction.SHIFT -> lockShift()
+            GestureAction.EMOJI -> openPanel(Panel.EMOJI)
+            GestureAction.CLIPBOARD -> openPanel(Panel.CLIPBOARD)
+            GestureAction.VOICE -> openPanel(Panel.VOICE)
+            GestureAction.TEXT_TOOLS -> openPanel(Panel.TEXT)
+            GestureAction.LANGUAGES -> if (settings.languages.size > 1) openPanel(Panel.LANGUAGES) else showImePicker()
+            GestureAction.IME_PICKER -> showImePicker()
+            GestureAction.NUMPAD -> switchMode(if (mode == KeyboardMode.NUMBER) KeyboardMode.ALPHA else KeyboardMode.NUMBER)
+            GestureAction.UNDO -> undoRedo(false)
+        }
+    }
+
+    // ───────────────────────── narzędzia tekstu ─────────────────────────
+
+    /** Zmienia zaznaczony tekst – albo słowo przed kursorem, gdy nic nie zaznaczono. */
+    fun transformText(fn: (String) -> String) {
+        val ic = ic ?: return
+        commitComposing(autocorrect = false)
+        val sel = ic.getSelectedText(0)?.toString()
+        if (!sel.isNullOrEmpty()) {
+            val out = fn(sel)
+            ic.commitText(out, 1)
+            ic.getExtractedText(android.view.inputmethod.ExtractedTextRequest(), 0)?.let {
+                val end = it.startOffset + it.selectionEnd
+                ic.setSelection(end - out.length, end)
+            }
+        } else {
+            val before = ic.getTextBeforeCursor(64, 0)?.toString().orEmpty()
+            val word = Regex("[\\p{L}\\p{N}'’-]+\\s*$").find(before)?.value?.trimEnd() ?: return
+            val trailing = before.length - before.trimEnd().length
+            ic.beginBatchEdit()
+            ic.deleteSurroundingText(word.length + trailing, 0)
+            ic.commitText(fn(word) + before.takeLast(trailing), 1)
+            ic.endBatchEdit()
+        }
+        selfEdit()
+        refreshSuggestions()
+    }
+
+    /** Liczba znaków i słów w polu (do panelu narzędzi tekstu). */
+    fun fieldStats(): Pair<Int, Int> {
+        val et = ic?.getExtractedText(android.view.inputmethod.ExtractedTextRequest(), 0)
+        val t = et?.text?.toString() ?: ((ic?.getTextBeforeCursor(5000, 0) ?: "").toString() + (ic?.getTextAfterCursor(5000, 0) ?: ""))
+        return t.length to TextTools.countWords(t)
+    }
+
+    fun clearField() {
+        val ic = ic ?: return
+        commitComposing(autocorrect = false)
+        ic.performContextMenuAction(android.R.id.selectAll)
+        ic.commitText("", 1)
+        selfEdit()
+        refreshSuggestions()
     }
 
     private var previousWordSafe: String? = null

@@ -32,7 +32,7 @@ import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.jsonObject
 
 /** Arkusze otwierane nad ekranem ustawień. */
-enum class Sheet { LANGUAGES, THEME, DICTIONARY, SHORTCUTS, TOOLBAR, ABOUT }
+enum class Sheet { LANGUAGES, THEME, DICTIONARY, SHORTCUTS, TOOLBAR, ABOUT, GESTURES }
 
 class AppViewModel(app: Application) : AndroidViewModel(app) {
     private val ctx: Context get() = getApplication()
@@ -72,6 +72,25 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         imeEnabled = imm?.enabledInputMethodList?.any { it.packageName == ctx.packageName } == true
         val current = Settings.Secure.getString(ctx.contentResolver, Settings.Secure.DEFAULT_INPUT_METHOD).orEmpty()
         imeSelected = current.startsWith(ctx.packageName + "/")
+    }
+
+    /** Obraz tła klawiatury: zmniejszony do rozsądnego rozmiaru i zapisany w plikach aplikacji. */
+    fun setBackground(uri: Uri) {
+        viewModelScope.launch {
+            runCatching {
+                withContext(Dispatchers.IO) {
+                    val bmp = ctx.contentResolver.openInputStream(uri)?.use { android.graphics.BitmapFactory.decodeStream(it) } ?: error("Brak obrazu")
+                    val scale = minOf(1f, 1600f / maxOf(bmp.width, bmp.height))
+                    val out = if (scale < 1f) android.graphics.Bitmap.createScaledBitmap(bmp, (bmp.width * scale).toInt(), (bmp.height * scale).toInt(), true) else bmp
+                    java.io.File(ctx.filesDir, com.blacksingularities.openkeyboard.ime.BACKGROUND_FILE).outputStream().use {
+                        out.compress(android.graphics.Bitmap.CompressFormat.JPEG, 88, it)
+                    }
+                }
+            }.onSuccess {
+                Prefs.update { it.copy(bgImage = true, bgImageStamp = System.currentTimeMillis()) }
+                toast(tr("Ustawiono obraz tła"))
+            }.onFailure { toast(tr("Nie udało się wczytać: {0}", it.message ?: "")) }
+        }
     }
 
     // ───────────────────────── kopia zapasowa ─────────────────────────

@@ -21,6 +21,9 @@ Najnowszy plik jest zawsze w **[Releases → Latest](../../releases/latest)**. K
 | **Autokorekta** | Ważona odległość edycji: sąsiednie klawisze, przestawione i podwojone litery. Cztery poziomy siły, Backspace cofa poprawkę. |
 | **Nauka** | Nowe słowa i pary słów (przewidywanie następnego słowa) zapamiętywane lokalnie. Przytrzymanie podpowiedzi blokuje słowo. |
 | **Inteligentna interpunkcja** | Kropka po spacji, wielka litera na początku zdania, „,.!?” przyklejane do słowa. |
+| **Pisanie gestem** | Przeciągnij palcem po literach słowa – dopasowanie kształtu ścieżki do słownika, ze śladem palca i kontekstem. |
+| **Wykrywanie języka** | Słowa języka, w którym właśnie piszesz, dostają pierwszeństwo. Cofnięta poprawka już nie wraca. |
+| **Narzędzia tekstu** | Wielkość liter, 13 ozdobnych stylów Unicode (𝐁𝐨𝐥𝐝, 𝓢𝓬𝓻𝓲𝓹𝓽, Ⓒⓘⓡⓒⓛⓔ…), data i godzina, licznik słów. |
 | **Kalkulator w pasku** | `12*7+3` → podpowiedź `= 87`. |
 | **Skróty tekstowe** | `pzdr` + spacja → „Pozdrawiam”. |
 | **Emoji w podpowiedziach** | „kot” → 🐱, po polsku i angielsku. |
@@ -37,6 +40,8 @@ Najnowszy plik jest zawsze w **[Releases → Latest](../../releases/latest)**. K
 
 ### Wygląd i ustawienia
 - 7 motywów (Czarny, AMOLED, Grafit, Granat, Las, Jasny, Papier), 10 akcentów, klawisze pełne / z obwódką / same znaki.
+- Własny motyw: dowolne kolory, obraz w tle klawiatury, krycie klawiszy, 5 czcionek.
+- Konfigurowalne gesty (spacja w bok / w górę / przytrzymanie, przeciągnięcie w dół, przytrzymanie Enter i przecinka), klawiatura dzielona w poziomie, 3 lub 5 podpowiedzi.
 - Wysokość, odstępy, zaokrąglenie, wielkość znaków, siła wibracji, dźwięk, czas przytrzymania – z podglądem na żywo.
 - Interfejs ustawień w stylu OpenViewPDF, po polsku i angielsku.
 - Kopia zapasowa (ustawienia, słownik, skróty, przypięte wpisy schowka) do pliku JSON.

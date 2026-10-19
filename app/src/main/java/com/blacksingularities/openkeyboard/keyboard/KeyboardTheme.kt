@@ -59,7 +59,40 @@ object KeyboardThemes {
         return if (l > 0.6f) Color.Black else Color.White
     }
 
+    /** Motyw złożony z kolorów wybranych przez użytkownika. */
+    fun custom(s: KeyboardSettings): KbColors {
+        val bg = Color(s.customBg.toInt())
+        val key = Color(s.customKey.toInt())
+        val text = Color(s.customText.toInt())
+        val accent = Color(s.customAccent.toInt())
+        val light = luminance(bg) > 0.55f
+        fun shift(c: Color, d: Float) = if (light) lerp(c, Color.Black, d) else lerp(c, Color.White, d)
+        return KbColors(
+            background = bg,
+            key = key,
+            keySpecial = lerp(key, bg, 0.45f),
+            keyPressed = shift(key, 0.18f),
+            text = text,
+            textDim = text.copy(alpha = 0.6f),
+            accent = accent,
+            onAccent = onAccent(accent),
+            strip = bg,
+            popup = shift(key, 0.08f),
+            light = light,
+        )
+    }
+
+    fun luminance(c: Color): Float = 0.299f * c.red + 0.587f * c.green + 0.114f * c.blue
+
+    private fun lerp(a: Color, b: Color, t: Float) = Color(
+        a.red + (b.red - a.red) * t,
+        a.green + (b.green - a.green) * t,
+        a.blue + (b.blue - a.blue) * t,
+        a.alpha,
+    )
+
     fun colors(s: KeyboardSettings): KbColors {
+        if (s.theme == "custom") return custom(s)
         val preset = presets.firstOrNull { it.id == s.theme } ?: presets.first()
         return preset.build(accents.getOrElse(s.accent) { accents.first() })
     }

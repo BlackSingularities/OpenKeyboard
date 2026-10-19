@@ -30,6 +30,7 @@ class SystemActions(
     val exportBackup: () -> Unit,
     val importBackup: () -> Unit,
     val openUrl: (String) -> Unit,
+    val pickBackground: () -> Unit,
 )
 
 val LocalSystem = staticCompositionLocalOf<SystemActions> { error("Brak SystemActions") }
@@ -55,6 +56,9 @@ class MainActivity : ComponentActivity() {
             val import = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
                 if (uri != null) vm.importBackup(uri)
             }
+            val background = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
+                if (uri != null) vm.setBackground(uri)
+            }
             val actions = SystemActions(
                 openImeSettings = { runCatching { startActivity(Intent(Settings.ACTION_INPUT_METHOD_SETTINGS)) } },
                 showImePicker = { getSystemService(InputMethodManager::class.java)?.showInputMethodPicker() },
@@ -63,6 +67,7 @@ class MainActivity : ComponentActivity() {
                 exportBackup = { export.launch("OpenKeyboard-kopia.json") },
                 importBackup = { import.launch(arrayOf("application/json", "text/plain", "*/*")) },
                 openUrl = { url -> runCatching { startActivity(Intent(Intent.ACTION_VIEW, android.net.Uri.parse(url))) } },
+                pickBackground = { background.launch("image/*") },
             )
             OpenKeyboardTheme {
                 CompositionLocalProvider(LocalSystem provides actions) {
