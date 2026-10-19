@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<input-method xmlns:android="http://schemas.android.com/apk/res/android"
+    android:settingsActivity="com.blacksingularities.openkeyboard.MainActivity"
+    android:supportsSwitchingToNextInputMethod="true"
+    android:isDefault="false">
+    <!-- Jeden podtyp: języki pisania przełącza się w samej klawiaturze (wiele naraz). -->
+    <subtype
+        android:label="@string/subtype_label"
+        android:imeSubtypeLocale=""
+        android:imeSubtypeMode="keyboard"
+        android:isAsciiCapable="true"
+        android:imeSubtypeExtraValue="AsciiCapable,EmojiCapable" />
+</input-method>

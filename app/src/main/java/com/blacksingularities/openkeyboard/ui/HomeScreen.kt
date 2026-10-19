@@ -1,0 +1,461 @@
+package com.blacksingularities.openkeyboard.ui
+
+import android.Manifest
+import android.content.pm.PackageManager
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.safeDrawing
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.layout.windowInsetsPadding
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.rounded.Backspace
+import androidx.compose.material.icons.automirrored.rounded.KeyboardReturn
+import androidx.compose.material.icons.automirrored.rounded.Shortcut
+import androidx.compose.material.icons.rounded.Abc
+import androidx.compose.material.icons.rounded.AutoFixHigh
+import androidx.compose.material.icons.rounded.Backup
+import androidx.compose.material.icons.rounded.BarChart
+import androidx.compose.material.icons.rounded.Calculate
+import androidx.compose.material.icons.rounded.Check
+import androidx.compose.material.icons.rounded.ContentPaste
+import androidx.compose.material.icons.rounded.DeleteSweep
+import androidx.compose.material.icons.rounded.Dialpad
+import androidx.compose.material.icons.rounded.EmojiEmotions
+import androidx.compose.material.icons.rounded.FormatSize
+import androidx.compose.material.icons.rounded.Height
+import androidx.compose.material.icons.rounded.Keyboard
+import androidx.compose.material.icons.rounded.KeyboardCapslock
+import androidx.compose.material.icons.rounded.KeyboardHide
+import androidx.compose.material.icons.rounded.Language
+import androidx.compose.material.icons.automirrored.rounded.MenuBook
+import androidx.compose.material.icons.rounded.Mic
+import androidx.compose.material.icons.rounded.Notifications
+import androidx.compose.material.icons.rounded.OpenWith
+import androidx.compose.material.icons.rounded.Palette
+import androidx.compose.material.icons.rounded.PictureInPicture
+import androidx.compose.material.icons.rounded.Psychology
+import androidx.compose.material.icons.rounded.Restore
+import androidx.compose.material.icons.rounded.Settings
+import androidx.compose.material.icons.rounded.SpaceBar
+import androidx.compose.material.icons.rounded.Spellcheck
+import androidx.compose.material.icons.rounded.SwapHoriz
+import androidx.compose.material.icons.rounded.SwipeDown
+import androidx.compose.material.icons.rounded.SystemUpdate
+import androidx.compose.material.icons.rounded.Timer
+import androidx.compose.material.icons.rounded.TouchApp
+import androidx.compose.material.icons.rounded.Translate
+import androidx.compose.material.icons.rounded.Tune
+import androidx.compose.material.icons.rounded.Vibration
+import androidx.compose.material.icons.rounded.VisibilityOff
+import androidx.compose.material.icons.rounded.VolumeUp
+import androidx.compose.material.icons.rounded.Widgets
+import androidx.compose.material3.Icon
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import com.blacksingularities.openkeyboard.LocalSystem
+import com.blacksingularities.openkeyboard.data.AppLanguage
+import com.blacksingularities.openkeyboard.data.Autocorrect
+import com.blacksingularities.openkeyboard.data.KeyboardSettings
+import com.blacksingularities.openkeyboard.data.Languages
+import com.blacksingularities.openkeyboard.data.OneHanded
+import com.blacksingularities.openkeyboard.data.Prefs
+import com.blacksingularities.openkeyboard.dict.UserModel
+import com.blacksingularities.openkeyboard.features.ClipboardHistory
+import com.blacksingularities.openkeyboard.i18n.tr
+import com.blacksingularities.openkeyboard.ui.components.ActionRow
+import com.blacksingularities.openkeyboard.ui.components.CompactChoice
+import com.blacksingularities.openkeyboard.ui.components.DarkDialog
+import com.blacksingularities.openkeyboard.ui.components.DarkField
+import com.blacksingularities.openkeyboard.ui.components.Group
+import com.blacksingularities.openkeyboard.ui.components.PillButton
+import com.blacksingularities.openkeyboard.ui.components.SectionHeader
+import com.blacksingularities.openkeyboard.ui.components.SliderRow
+import com.blacksingularities.openkeyboard.ui.components.StatTile
+import com.blacksingularities.openkeyboard.ui.components.Tile
+import com.blacksingularities.openkeyboard.ui.components.TileGrid
+import com.blacksingularities.openkeyboard.ui.theme.Palette
+
+@Composable
+fun AppRoot(vm: AppViewModel) {
+    Box(Modifier.fillMaxSize().background(Palette.Ink)) {
+        HomeScreen(vm)
+        when (vm.sheet) {
+            Sheet.LANGUAGES -> LanguagesSheet(vm)
+            Sheet.THEME -> ThemeSheet(vm)
+            Sheet.DICTIONARY -> DictionarySheet(vm)
+            Sheet.SHORTCUTS -> ShortcutsSheet(vm)
+            Sheet.TOOLBAR -> ToolbarSheet(vm)
+            Sheet.ABOUT -> AboutSheet(vm)
+            null -> {}
+        }
+        val msg = vm.message
+        AnimatedVisibility(
+            msg != null,
+            enter = fadeIn(),
+            exit = fadeOut(),
+            modifier = Modifier.align(Alignment.BottomCenter).windowInsetsPadding(WindowInsets.safeDrawing).padding(bottom = 24.dp),
+        ) {
+            Text(
+                msg.orEmpty(),
+                color = Palette.Ink,
+                fontSize = 13.sp,
+                fontWeight = FontWeight.SemiBold,
+                modifier = Modifier
+                    .clip(RoundedCornerShape(50))
+                    .background(Color.White)
+                    .padding(horizontal = 16.dp, vertical = 10.dp),
+            )
+        }
+    }
+}
+
+@Composable
+private fun HomeScreen(vm: AppViewModel) {
+    Column(
+        Modifier
+            .fillMaxSize()
+            .windowInsetsPadding(WindowInsets.safeDrawing)
+            .imePadding()
+            .verticalScroll(rememberScrollState())
+            .padding(horizontal = 14.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        Column(Modifier.widthIn(max = 720.dp).fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Header(vm)
+            UpdateBanner(vm)
+            SetupCard(vm)
+            TryField()
+            Stats()
+            SettingsContent(vm)
+            Spacer(Modifier.height(24.dp))
+        }
+    }
+}
+
+@Composable
+private fun Header(vm: AppViewModel) {
+    Row(Modifier.fillMaxWidth().padding(top = 12.dp, bottom = 4.dp, start = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+        Box(Modifier.size(42.dp).clip(RoundedCornerShape(12.dp)).background(Color.White), contentAlignment = Alignment.Center) {
+            Icon(Icons.Rounded.Keyboard, null, tint = Palette.Ink, modifier = Modifier.size(26.dp))
+        }
+        Column(Modifier.weight(1f).padding(start = 12.dp)) {
+            Text("OpenKeyboard", fontSize = 22.sp, fontWeight = FontWeight.Black, color = Color.White)
+            Text(tr("Wersja {0} · {1} języków", vm.appVersion, Languages.all.size), fontSize = 12.sp, color = Palette.TextDim)
+        }
+    }
+}
+
+/** Kroki konfiguracji: włączenie klawiatury, wybór domyślnej, mikrofon, powiadomienia. */
+@Composable
+private fun SetupCard(vm: AppViewModel) {
+    val sys = LocalSystem.current
+    val ctx = LocalContext.current
+    val micOk = ctx.checkSelfPermission(Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED
+    val notifOk = android.os.Build.VERSION.SDK_INT < 33 || ctx.checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED
+    val ready = vm.imeEnabled && vm.imeSelected
+    Group(if (ready) tr("Klawiatura gotowa") else tr("Pierwsze kroki")) {
+        StepRow(1, tr("Włącz OpenKeyboard"), tr("W ustawieniach systemu: Klawiatury → OpenKeyboard"), vm.imeEnabled, tr("Włącz")) { sys.openImeSettings() }
+        StepRow(2, tr("Ustaw jako domyślną"), tr("Wybierz OpenKeyboard z listy klawiatur"), vm.imeSelected, tr("Wybierz"), enabled = vm.imeEnabled) { sys.showImePicker() }
+        StepRow(3, tr("Dyktowanie (opcjonalnie)"), tr("Dostęp do mikrofonu dla przycisku dyktowania"), micOk, tr("Zezwól")) { sys.requestMic() }
+        if (!notifOk) StepRow(4, tr("Powiadomienia (opcjonalnie)"), tr("Informacja o zainstalowanej aktualizacji"), false, tr("Zezwól")) { sys.requestNotifications() }
+    }
+}
+
+@Composable
+private fun StepRow(n: Int, title: String, subtitle: String, done: Boolean, action: String, enabled: Boolean = true, onClick: () -> Unit) {
+    Row(Modifier.fillMaxWidth().padding(horizontal = 10.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+        Box(
+            Modifier.size(32.dp).clip(CircleShape).background(if (done) Color.White else Color.White.copy(alpha = 0.1f)),
+            contentAlignment = Alignment.Center,
+        ) {
+            if (done) Icon(Icons.Rounded.Check, null, tint = Palette.Ink, modifier = Modifier.size(18.dp))
+            else Text(n.toString(), color = Color.White, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+        }
+        Column(Modifier.weight(1f).padding(horizontal = 12.dp)) {
+            Text(title, fontSize = 14.sp, color = if (enabled || done) Color.White else Palette.TextFaint)
+            Text(subtitle, fontSize = 11.sp, color = Palette.TextDim, lineHeight = 14.sp)
+        }
+        if (!done) PillButton(action, enabled = enabled, onClick = onClick)
+    }
+}
+
+@Composable
+private fun TryField() {
+    var text by remember { mutableStateOf("") }
+    Group(tr("Wypróbuj")) {
+        Column(Modifier.padding(10.dp)) {
+            DarkField(text, { text = it }, tr("Napisz coś – np. „zolw” albo „=12*7”"), singleLine = false, minLines = 2)
+        }
+    }
+}
+
+@Composable
+private fun Stats() {
+    val st by UserModel.stats.collectAsState()
+    if (st.words == 0L) return
+    Row(Modifier.fillMaxWidth().padding(top = 4.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+        StatTile(compact(st.words), tr("słów"), Modifier.weight(1f))
+        StatTile(compact(st.corrections), tr("poprawek"), Modifier.weight(1f))
+        StatTile(compact(st.charsSaved), tr("znaków zaoszczędzonych"), Modifier.weight(1f))
+        StatTile(compact(st.emojis), tr("emoji"), Modifier.weight(1f))
+    }
+}
+
+private fun compact(n: Long): String = when {
+    n >= 1_000_000 -> String.format("%.1fM", n / 1_000_000.0)
+    n >= 10_000 -> "${n / 1000}k"
+    else -> n.toString()
+}
+
+@Composable
+private fun ColumnScope.SettingsContent(vm: AppViewModel) {
+    val s = vm.settings
+    val sys = LocalSystem.current
+    fun set(t: (KeyboardSettings) -> KeyboardSettings) = vm.update(t)
+    var confirm by remember { mutableStateOf<Pair<String, () -> Unit>?>(null) }
+
+    SectionHeader(Icons.Rounded.Language, tr("Języki"))
+    Group(null) {
+        ActionRow(
+            Icons.Rounded.Language,
+            tr("Języki i słowniki"),
+            s.languages.joinToString(" · ") { Languages.get(it).native } + "  ·  " + tr("dotknij, aby dodać lub pobrać"),
+        ) { vm.sheet = Sheet.LANGUAGES }
+    }
+    TileGrid(
+        listOf(
+            Tile(Icons.Rounded.Translate, tr("Wiele naraz"), tr("Podpowiedzi i autokorekta ze wszystkich włączonych języków jednocześnie – bez przełączania"), s.multilingual) { v -> set { it.copy(multilingual = v) } },
+            Tile(Icons.Rounded.Language, tr("Klawisz języka"), tr("Przycisk globusa obok spacji (gdy jest kilka języków)"), s.languageKey) { v -> set { it.copy(languageKey = v) } },
+            Tile(Icons.Rounded.SpaceBar, tr("Język na spacji"), tr("Nazwa bieżącego języka na klawiszu spacji"), s.showSpaceLanguage) { v -> set { it.copy(showSpaceLanguage = v) } },
+            Tile(Icons.Rounded.TouchApp, tr("Spacja: języki"), tr("Przytrzymanie spacji otwiera listę języków (albo wybór klawiatury)"), s.spaceLongPressPicker) { v -> set { it.copy(spaceLongPressPicker = v) } },
+        ),
+    )
+
+    SectionHeader(Icons.Rounded.Psychology, tr("Pisanie i podpowiedzi"))
+    Group(null) {
+        CompactChoice(
+            Icons.Rounded.AutoFixHigh,
+            tr("Autokorekta"),
+            Autocorrect.entries,
+            s.autocorrect,
+            {
+                when (it) {
+                    Autocorrect.OFF -> tr("Wyłączona")
+                    Autocorrect.GENTLE -> tr("Łagodna – tylko oczywiste literówki")
+                    Autocorrect.NORMAL -> tr("Normalna")
+                    Autocorrect.AGGRESSIVE -> tr("Mocna – poprawia odważniej")
+                }
+            },
+            short = { when (it) { Autocorrect.OFF -> tr("Wył."); Autocorrect.GENTLE -> "1"; Autocorrect.NORMAL -> "2"; Autocorrect.AGGRESSIVE -> "3" } },
+        ) { v -> set { it.copy(autocorrect = v) } }
+    }
+    TileGrid(
+        listOf(
+            Tile(Icons.Rounded.Spellcheck, tr("Podpowiedzi"), tr("Pasek z podpowiedziami słów nad klawiaturą"), s.suggestions) { v -> set { it.copy(suggestions = v) } },
+            Tile(Icons.Rounded.Psychology, tr("Następne słowo"), tr("Przewidywanie kolejnego słowa na podstawie Twojego pisania"), s.nextWord) { v -> set { it.copy(nextWord = v) } },
+            Tile(Icons.AutoMirrored.Rounded.MenuBook, tr("Ucz się"), tr("Zapamiętywanie nowych słów i par słów (lokalnie, na telefonie)"), s.learnWords) { v -> set { it.copy(learnWords = v) } },
+            Tile(Icons.Rounded.KeyboardCapslock, tr("Wielka litera"), tr("Automatycznie wielka litera na początku zdania"), s.autoCapitalize) { v -> set { it.copy(autoCapitalize = v) } },
+            Tile(Icons.Rounded.SpaceBar, tr("Kropka 2× spacja"), tr("Dwukrotne naciśnięcie spacji wstawia kropkę i spację"), s.doubleSpacePeriod) { v -> set { it.copy(doubleSpacePeriod = v) } },
+            Tile(Icons.Rounded.AutoFixHigh, tr("Interpunkcja"), tr("Kropka, przecinek, ! i ? po wybranym słowie trafiają za słowo, a spacja za znak"), s.smartPunctuation) { v -> set { it.copy(smartPunctuation = v) } },
+            Tile(Icons.Rounded.EmojiEmotions, tr("Emoji w pasku"), tr("Podpowiadanie emoji do słów (np. „kot” → 🐱)"), s.emojiSuggestions) { v -> set { it.copy(emojiSuggestions = v) } },
+            Tile(Icons.Rounded.Calculate, tr("Kalkulator"), tr("Wynik działania w pasku: wpisz np. 12*7+3"), s.inlineCalc) { v -> set { it.copy(inlineCalc = v) } },
+            Tile(Icons.AutoMirrored.Rounded.Shortcut, tr("Skróty"), tr("Rozwijanie skrótów tekstowych (np. „pzdr” → „Pozdrawiam”)"), s.shortcuts) { v -> set { it.copy(shortcuts = v) } },
+            Tile(Icons.Rounded.OpenWith, tr("Popraw słowo"), tr("Kursor postawiony na końcu słowa pokazuje dla niego podpowiedzi"), s.reSuggest) { v -> set { it.copy(reSuggest = v) } },
+            Tile(Icons.Rounded.ContentPaste, tr("Wklej z paska"), tr("Świeżo skopiowany tekst pojawia się w pasku do wklejenia"), s.clipboardSuggestion) { v -> set { it.copy(clipboardSuggestion = v) } },
+        ),
+    )
+    Group(null) {
+        ActionRow(Icons.AutoMirrored.Rounded.MenuBook, tr("Słownik użytkownika"), tr("Wyuczone i dodane słowa, słowa zablokowane")) { vm.sheet = Sheet.DICTIONARY }
+        val shortcuts by UserModel.shortcuts.collectAsState()
+        ActionRow(Icons.AutoMirrored.Rounded.Shortcut, tr("Skróty tekstowe"), tr("{0} skrótów", shortcuts.size)) { vm.sheet = Sheet.SHORTCUTS }
+    }
+
+    SectionHeader(Icons.Rounded.Palette, tr("Wygląd"))
+    Group(null) {
+        ActionRow(Icons.Rounded.Palette, tr("Motyw, kolory i klawisze"), tr("Podgląd na żywo, 7 motywów, 10 akcentów, kształt klawiszy")) { vm.sheet = Sheet.THEME }
+    }
+    TileGrid(
+        listOf(
+            Tile(Icons.Rounded.FormatSize, tr("Podgląd znaku"), tr("Powiększony znak nad naciśniętym klawiszem"), s.keyPreview) { v -> set { it.copy(keyPreview = v) } },
+            Tile(Icons.Rounded.Abc, tr("Znaki w rogu"), tr("Małe cyfry i polskie znaki w rogu klawiszy (dostępne po przytrzymaniu)"), s.keyHints) { v -> set { it.copy(keyHints = v) } },
+            Tile(Icons.Rounded.FormatSize, tr("Pogrubione"), tr("Pogrubione litery na klawiszach"), s.boldLabels) { v -> set { it.copy(boldLabels = v) } },
+        ),
+    )
+
+    SectionHeader(Icons.Rounded.Keyboard, tr("Układ"))
+    TileGrid(
+        listOf(
+            Tile(Icons.Rounded.Dialpad, tr("Rząd cyfr"), tr("Stały rząd cyfr nad literami"), s.numberRow) { v -> set { it.copy(numberRow = v) } },
+            Tile(Icons.Rounded.Abc, tr("Przecinek"), tr("Klawisz przecinka obok spacji"), s.commaKey) { v -> set { it.copy(commaKey = v) } },
+            Tile(Icons.Rounded.EmojiEmotions, tr("Klawisz emoji"), tr("Przycisk emoji obok spacji (emoji są też pod przytrzymaniem Enter)"), s.emojiKey) { v -> set { it.copy(emojiKey = v) } },
+            Tile(Icons.Rounded.PictureInPicture, tr("Pływająca"), tr("Klawiatura jako przesuwana nakładka nad aplikacją"), s.floating) { v -> set { it.copy(floating = v) } },
+        ),
+    )
+    Group(null) {
+        CompactChoice(
+            Icons.Rounded.SwapHoriz,
+            tr("Tryb jednej ręki"),
+            OneHanded.entries,
+            s.oneHanded,
+            { when (it) { OneHanded.OFF -> tr("Wyłączony"); OneHanded.LEFT -> tr("Do lewej"); OneHanded.RIGHT -> tr("Do prawej") } },
+            short = { when (it) { OneHanded.OFF -> tr("Wył."); OneHanded.LEFT -> "L"; OneHanded.RIGHT -> "P" } },
+        ) { v -> set { it.copy(oneHanded = v) } }
+        SliderRow(Icons.Rounded.Height, tr("Wysokość klawiszy"), s.keyHeight, 70..140, 5, { "$it%" }) { v -> set { it.copy(keyHeight = v) } }
+        SliderRow(Icons.Rounded.SwapHoriz, tr("Szerokość w trybie jednej ręki"), s.oneHandedWidth, 60..95, 1, { "$it%" }) { v -> set { it.copy(oneHandedWidth = v) } }
+        SliderRow(Icons.Rounded.PictureInPicture, tr("Szerokość klawiatury pływającej"), s.floatingScale, 55..100, 1, { "$it%" }) { v -> set { it.copy(floatingScale = v) } }
+        SliderRow(Icons.Rounded.KeyboardHide, tr("Odstęp od dołu ekranu"), s.bottomPadding, 0..40, 1, { "$it dp" }) { v -> set { it.copy(bottomPadding = v) } }
+        SliderRow(Icons.Rounded.Timer, tr("Czas przytrzymania"), s.longPressMs, 150..700, 10, { "$it ms" }) { v -> set { it.copy(longPressMs = v) } }
+    }
+
+    SectionHeader(Icons.Rounded.TouchApp, tr("Dotyk i dźwięk"))
+    TileGrid(
+        listOf(
+            Tile(Icons.Rounded.Vibration, tr("Wibracja"), tr("Delikatna wibracja przy każdym klawiszu"), s.haptics) { v -> set { it.copy(haptics = v) } },
+            Tile(Icons.Rounded.VolumeUp, tr("Dźwięk"), tr("Dźwięk systemowy przy naciśnięciu klawisza"), s.sound) { v -> set { it.copy(sound = v) } },
+            Tile(Icons.Rounded.SpaceBar, tr("Kursor spacją"), tr("Przesuwanie palca po spacji przesuwa kursor"), s.spaceCursor) { v -> set { it.copy(spaceCursor = v) } },
+            Tile(Icons.AutoMirrored.Rounded.Backspace, tr("Usuwanie gestem"), tr("Przesuń palec w lewo z Backspace, aby zaznaczyć i usunąć całe słowa"), s.deleteSwipe) { v -> set { it.copy(deleteSwipe = v) } },
+            Tile(Icons.Rounded.SwipeDown, tr("W dół chowa"), tr("Przeciągnięcie palcem w dół po klawiszach chowa klawiaturę"), s.swipeDownHide) { v -> set { it.copy(swipeDownHide = v) } },
+        ),
+    )
+    Group(null) {
+        SliderRow(Icons.Rounded.Vibration, tr("Siła wibracji"), s.hapticStrength, 1..100, 1, { "$it%" }) { v -> set { it.copy(hapticStrength = v) } }
+        SliderRow(Icons.Rounded.VolumeUp, tr("Głośność klawiszy"), s.soundVolume, 1..100, 1, { "$it%" }) { v -> set { it.copy(soundVolume = v) } }
+    }
+
+    SectionHeader(Icons.Rounded.Widgets, tr("Narzędzia"))
+    Group(null) {
+        ActionRow(Icons.Rounded.Tune, tr("Pasek narzędzi"), tr("Kolejność i widoczność przycisków nad klawiaturą")) { vm.sheet = Sheet.TOOLBAR }
+    }
+    TileGrid(
+        listOf(
+            Tile(Icons.Rounded.ContentPaste, tr("Historia schowka"), tr("Zapamiętywanie skopiowanych tekstów (dane poufne są pomijane)"), s.clipboardHistory) { v -> set { it.copy(clipboardHistory = v) } },
+            Tile(Icons.Rounded.VisibilityOff, tr("Auto-incognito"), tr("Bez nauki i historii w polach haseł i w trybie prywatnym przeglądarek"), s.incognitoAuto) { v -> set { it.copy(incognitoAuto = v) } },
+            Tile(Icons.Rounded.VisibilityOff, tr("Zawsze incognito"), tr("Klawiatura niczego nie zapamiętuje"), s.forceIncognito) { v -> set { it.copy(forceIncognito = v) } },
+            Tile(Icons.Rounded.Mic, tr("Wielka litera w dyktowaniu"), tr("Dyktowany tekst na początku zdania zaczyna się wielką literą"), s.voiceAutoPunct) { v -> set { it.copy(voiceAutoPunct = v) } },
+        ),
+    )
+    Group(null) {
+        SliderRow(Icons.Rounded.ContentPaste, tr("Pojemność historii schowka"), s.clipboardSize, 10..200, 10) { v -> set { it.copy(clipboardSize = v) } }
+        ActionRow(Icons.Rounded.DeleteSweep, tr("Wyczyść historię schowka"), tr("Przypięte wpisy zostaną"), danger = true) {
+            confirm = tr("Wyczyścić historię schowka?") to { ClipboardHistory.clear() }
+        }
+    }
+
+    SectionHeader(Icons.Rounded.Backup, tr("Kopia zapasowa"))
+    Group(null) {
+        ActionRow(Icons.Rounded.Backup, tr("Eksportuj"), tr("Ustawienia, wyuczone słowa, skróty i przypięte wpisy schowka do pliku JSON")) { sys.exportBackup() }
+        ActionRow(Icons.Rounded.Restore, tr("Importuj"), tr("Przywróć z pliku kopii")) { sys.importBackup() }
+        ActionRow(Icons.Rounded.BarChart, tr("Zeruj statystyki"), null) {
+            confirm = tr("Wyzerować statystyki pisania?") to { UserModel.resetStats() }
+        }
+        ActionRow(Icons.AutoMirrored.Rounded.MenuBook, tr("Zapomnij wyuczone słowa"), tr("Słowa i pary słów zapamiętane podczas pisania"), danger = true) {
+            confirm = tr("Usunąć wszystkie wyuczone słowa?") to { UserModel.clearLearned() }
+        }
+        ActionRow(Icons.Rounded.Restore, tr("Przywróć ustawienia domyślne"), null, danger = true) {
+            confirm = tr("Przywrócić domyślne ustawienia klawiatury?") to { Prefs.reset() }
+        }
+    }
+
+    SectionHeader(Icons.Rounded.Settings, tr("Ogólne"))
+    Group(null) {
+        CompactChoice(
+            Icons.Rounded.Language,
+            tr("Język aplikacji"),
+            AppLanguage.entries,
+            s.appLanguage,
+            { when (it) { AppLanguage.SYSTEM -> tr("Systemowy"); AppLanguage.PL -> "Polski"; AppLanguage.EN -> "English" } },
+            short = { when (it) { AppLanguage.SYSTEM -> "Auto"; AppLanguage.PL -> "PL"; AppLanguage.EN -> "EN" } },
+        ) { v -> set { it.copy(appLanguage = v) } }
+    }
+    TileGrid(
+        listOf(
+            Tile(Icons.Rounded.SystemUpdate, tr("Aktualizacje"), tr("Sprawdzaj nowe wersje na GitHubie przy uruchomieniu"), s.autoUpdate) { v -> set { it.copy(autoUpdate = v) } },
+            Tile(Icons.Rounded.Notifications, tr("Powiadomienia"), tr("Zezwól na powiadomienie po aktualizacji"), false) { sys.requestNotifications() },
+        ),
+    )
+    Group(null) {
+        UpdateRow(vm)
+        ActionRow(Icons.AutoMirrored.Rounded.KeyboardReturn, tr("O aplikacji i źródłach danych"), tr("Licencje słowników, emoji i tłumacza")) { vm.sheet = Sheet.ABOUT }
+    }
+    About()
+
+    val c = confirm
+    if (c != null) {
+        DarkDialog(
+            title = c.first,
+            onDismiss = { confirm = null },
+            buttons = {
+                PillButton(tr("Anuluj"), primary = false) { confirm = null }
+                PillButton(tr("Tak"), danger = true) {
+                    c.second()
+                    confirm = null
+                    vm.toast(tr("Gotowe"))
+                }
+            },
+        ) {
+            Text(tr("Tej operacji nie można cofnąć."), color = Palette.TextDim, fontSize = 13.sp)
+        }
+    }
+}
+
+@Composable
+private fun About() {
+    val sys = LocalSystem.current
+    Column(Modifier.fillMaxWidth().padding(12.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+        Text(tr("OpenKeyboard – otwarta klawiatura dla Androida"), fontSize = 13.sp, color = Color.White)
+        Text(tr("Licencja MIT · bez reklam i śledzenia"), fontSize = 11.sp, color = Palette.TextDim)
+        Text(
+            "github.com/BlackSingularities/OpenKeyboard",
+            fontSize = 12.sp,
+            color = Color.White,
+            fontWeight = FontWeight.SemiBold,
+            modifier = Modifier
+                .padding(top = 6.dp)
+                .clip(RoundedCornerShape(8.dp))
+                .clickable { sys.openUrl("https://github.com/BlackSingularities/OpenKeyboard") }
+                .padding(horizontal = 8.dp, vertical = 4.dp),
+        )
+        Text(
+            tr("Pomysł i wykonanie: redzikowski.com"),
+            fontSize = 12.sp,
+            color = Palette.TextDim,
+            modifier = Modifier
+                .clip(RoundedCornerShape(8.dp))
+                .clickable { sys.openUrl("https://redzikowski.com") }
+                .padding(horizontal = 8.dp, vertical = 4.dp),
+        )
+    }
+}

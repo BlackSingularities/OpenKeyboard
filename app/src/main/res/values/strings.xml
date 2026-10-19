@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">OpenKeyboard</string>
+    <string name="spell_name">OpenKeyboard – pisownia</string>
+    <string name="subtype_label">Wielojęzyczna</string>
+</resources>
