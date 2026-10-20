@@ -216,9 +216,10 @@ private fun HomeScreen(vm: AppViewModel) {
 @Composable
 private fun Header(vm: AppViewModel) {
     Row(Modifier.fillMaxWidth().padding(top = 12.dp, bottom = 4.dp, start = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-        Box(Modifier.size(42.dp).clip(RoundedCornerShape(12.dp)).background(Color.White), contentAlignment = Alignment.Center) {
-            Icon(Icons.Rounded.Keyboard, null, tint = Palette.Ink, modifier = Modifier.size(26.dp))
-        }
+        androidx.compose.foundation.Image(
+            androidx.compose.ui.res.painterResource(com.blacksingularities.openkeyboard.R.drawable.brand_mark),
+            contentDescription = null, modifier = Modifier.size(42.dp),
+        )
         Column(Modifier.weight(1f).padding(start = 12.dp)) {
             Text("OpenKeyboard", fontSize = 22.sp, fontWeight = FontWeight.Black, color = Color.White)
             Text(tr("Wersja {0} · {1} języków", vm.appVersion, Languages.all.size), fontSize = 12.sp, color = Palette.TextDim)
