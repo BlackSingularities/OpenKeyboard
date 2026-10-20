@@ -2,7 +2,10 @@ package com.blacksingularities.openkeyboard.features
 
 import java.text.SimpleDateFormat
 import java.util.Date
+import java.util.Calendar
 import java.util.Locale
+import java.util.UUID
+import kotlin.random.Random
 
 /**
  * Ozdobne style z bloków Unicode (działają w każdej aplikacji, bez czcionek):
@@ -93,6 +96,37 @@ object TextTools {
     fun date(): String = SimpleDateFormat("d.MM.yyyy", Locale.getDefault()).format(Date())
     fun time(): String = SimpleDateFormat("HH:mm", Locale.getDefault()).format(Date())
     fun iso(): String = SimpleDateFormat("yyyy-MM-dd'T'HH:mm", Locale.US).format(Date())
+
+    /**
+     * Gotowe wstawki daty i czasu w języku pisania: (etykieta, tekst). Etykieta null – pokazuje
+     * sam tekst. Nazwy miesięcy i dni w odpowiednim języku („20 października 2026”).
+     */
+    fun dateInserts(lang: String, now: Date = Date()): List<Pair<String?, String>> {
+        val loc = Locale.forLanguageTag(lang)
+        fun f(p: String, d: Date = now, l: Locale = loc) = SimpleDateFormat(p, l).format(d)
+        val cal = Calendar.getInstance(loc).apply { time = now }
+        val tomorrow = Calendar.getInstance(loc).apply { time = now; add(Calendar.DAY_OF_MONTH, 1) }.time
+        val yesterday = Calendar.getInstance(loc).apply { time = now; add(Calendar.DAY_OF_MONTH, -1) }.time
+        return listOf(
+            null to f("d.MM.yyyy"),
+            null to f("d MMMM yyyy"),
+            null to f("EEEE, d MMMM"),
+            null to f("HH:mm"),
+            null to f("d.MM.yyyy, HH:mm"),
+            null to f("yyyy-MM-dd", l = Locale.US),
+            null to f("MMMM yyyy").replaceFirstChar { it.uppercase(loc) },
+            "+1" to f("d.MM.yyyy", tomorrow),
+            "−1" to f("d.MM.yyyy", yesterday),
+            "#" to cal.get(Calendar.WEEK_OF_YEAR).toString(),
+            "ISO" to iso(),
+            "Unix" to (now.time / 1000).toString(),
+        )
+    }
+
+    fun uuid(): String = UUID.randomUUID().toString()
+
+    fun randomNumber(): String = Random.nextInt(1, 101).toString()
+
 
     fun countWords(text: String): Int = Regex("""[\p{L}\p{N}'’-]+""").findAll(text).count()
 }

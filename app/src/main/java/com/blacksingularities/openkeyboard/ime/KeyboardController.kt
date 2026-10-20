@@ -27,7 +27,6 @@ import com.blacksingularities.openkeyboard.dict.normalizeKey
 import com.blacksingularities.openkeyboard.emoji.EmojiData
 import com.blacksingularities.openkeyboard.features.Calculator
 import com.blacksingularities.openkeyboard.features.ClipboardHistory
-import com.blacksingularities.openkeyboard.features.Translator
 import com.blacksingularities.openkeyboard.features.FancyStyle
 import com.blacksingularities.openkeyboard.features.TextTools
 import com.blacksingularities.openkeyboard.data.GestureAction
@@ -55,10 +54,10 @@ import kotlin.math.hypot
 enum class ShiftState { OFF, ONESHOT, LOCKED }
 
 /** Co pokazuje klawiatura pod paskiem podpowiedzi. */
-enum class Panel { KEYS, EMOJI, CLIPBOARD, EDIT, TEXT, VOICE, LANGUAGES, QUICK, RESIZE }
+enum class Panel { KEYS, EMOJI, CLIPBOARD, EDIT, TEXT, VOICE, LANGUAGES, QUICK, RESIZE, SYMBOLS }
 
-/** Pisanie do pola w samej klawiaturze (wyszukiwanie emoji, tłumacz) zamiast do aplikacji. */
-enum class InternalTarget { EMOJI_SEARCH, TRANSLATE }
+/** Pisanie do pola w samej klawiaturze (wyszukiwanie emoji) zamiast do aplikacji. */
+enum class InternalTarget { EMOJI_SEARCH }
 
 /**
  * Stan i logika klawiatury: tryby (litery / symbole / cyfry), Shift, wpisywane słowo
@@ -94,9 +93,6 @@ class KeyboardController(val service: OpenKeyboardService) {
     var internal by mutableStateOf<InternalTarget?>(null)
         private set
     var internalText by mutableStateOf("")
-    var translateResult by mutableStateOf<String?>(null)
-    var translateBusy by mutableStateOf(false)
-    var translateFrom by mutableStateOf("auto")
     var toast by mutableStateOf<String?>(null)
     var floatingOffset by mutableStateOf(Offset.Zero)
     var selecting by mutableStateOf(false)
@@ -331,6 +327,8 @@ class KeyboardController(val service: OpenKeyboardService) {
             if (before2.length == 2 && before2[1] in ",;!?" && before2[0].isLetter()) ic.commitText(" ", 1)
         }
         val wordChar = text.length == 1 && (ch.isLetter() || (composing.isNotEmpty() && (ch == '\'' || ch == '’' || ch == '-')))
+        // Pisanie chowa ręcznie otwarty pasek narzędzi – wracają podpowiedzi.
+        if (wordChar) toolbarOpen = false
         if (wordChar && wordSuggestions) {
             if (composing.isEmpty()) {
                 keepTyped = false
@@ -411,11 +409,7 @@ class KeyboardController(val service: OpenKeyboardService) {
 
     fun onEnter() {
         if (internal != null) {
-            when (internal) {
-                InternalTarget.TRANSLATE -> runTranslate()
-                InternalTarget.EMOJI_SEARCH -> closeInternal(Panel.EMOJI)
-                null -> {}
-            }
+            closeInternal(Panel.EMOJI)
             return
         }
         val ic = ic ?: return
@@ -466,8 +460,9 @@ class KeyboardController(val service: OpenKeyboardService) {
         }
         lastCorrection = null
         autoSpace = false
+        val wordMode = settings.deleteWordsOnHold && deleteRepeats > DELETE_WORDS_AFTER
         if (composing.isNotEmpty()) {
-            if (deleteRepeats > 12) {
+            if (wordMode) {
                 composing.clear()
                 ic.commitText("", 1)
             } else {
@@ -491,7 +486,7 @@ class KeyboardController(val service: OpenKeyboardService) {
             if (before == null) {
                 sendKey(KeyEvent.KEYCODE_DEL)
             } else if (before.isNotEmpty()) {
-                val n = if (deleteRepeats > 12) wordLengthBefore(before) else graphemeLengthBefore(before)
+                val n = if (wordMode) wordLengthBefore(before) else graphemeLengthBefore(before)
                 ic.deleteSurroundingText(n.coerceAtLeast(1), 0)
             } else {
                 // Puste pole – niektóre aplikacje (np. czaty) reagują na samo zdarzenie klawisza.
@@ -964,6 +959,15 @@ class KeyboardController(val service: OpenKeyboardService) {
         setLanguage(langs[(i + 1) % langs.size])
     }
 
+    /** Przesuwanie przytrzymanej spacji: kolejny język w lewo albo w prawo. */
+    fun languageStep(dir: Int): Boolean {
+        val langs = settings.languages
+        if (langs.size < 2) return false
+        val i = langs.indexOf(settings.activeLanguage)
+        setLanguage(langs[(i + dir).mod(langs.size)])
+        return true
+    }
+
     fun setLanguage(code: String) {
         commitComposing(autocorrect = false)
         Prefs.update { it.copy(activeLanguage = code) }
@@ -998,7 +1002,6 @@ class KeyboardController(val service: OpenKeyboardService) {
         commitComposing(autocorrect = false)
         internal = t
         internalText = ""
-        translateResult = null
         panel = Panel.KEYS
         toolbarOpen = false
         if (mode != KeyboardMode.ALPHA) switchMode(KeyboardMode.ALPHA)
@@ -1008,46 +1011,24 @@ class KeyboardController(val service: OpenKeyboardService) {
     fun closeInternal(back: Panel = Panel.KEYS) {
         internal = null
         internalText = ""
-        translateResult = null
         panel = back
         updateAutoShift()
         refreshSuggestions()
     }
 
-    private var translateJob: Job? = null
+    /** Wyniki wyszukiwania emoji odświeżają się same (stan [internalText]). */
+    private fun afterInternalChange() {}
 
-    private fun afterInternalChange() {
-        if (internal == InternalTarget.TRANSLATE) {
-            translateResult = null
-            translateJob?.cancel()
-            // Tłumaczenie po krótkiej przerwie w pisaniu.
-            translateJob = scope.launch {
-                delay(900)
-                if (internalText.isNotBlank()) runTranslate()
-            }
-        }
-    }
-
-    fun runTranslate() {
-        val text = internalText.trim()
-        if (text.isEmpty()) return
-        translateJob?.cancel()
-        translateJob = scope.launch {
-            translateBusy = true
-            val from = if (translateFrom == "auto") settings.activeLanguage else translateFrom
-            val to = settings.translateTarget.takeIf { it != from } ?: if (from == "en") "pl" else "en"
-            translateResult = runCatching { Translator.translate(text, from, to) }.getOrElse { tr("Błąd tłumaczenia: {0}", it.message ?: "") }
-            translateBusy = false
-        }
-    }
-
-    fun insertTranslation() {
-        val t = translateResult ?: return
-        closeInternal()
-        ic?.commitText(t, 1)
-        selfEdit()
+    fun toggleIncognito() {
+        Prefs.update { it.copy(forceIncognito = !it.forceIncognito) }
+        val s = Prefs.current
+        val noLearning = editorInfo?.let { (it.imeOptions and EditorInfo.IME_FLAG_NO_PERSONALIZED_LEARNING) != 0 } ?: false
+        incognito = s.forceIncognito || fieldKind == FieldKind.PASSWORD || (s.incognitoAuto && noLearning)
+        ClipboardHistory.paused = incognito
+        showToast(if (incognito) tr("Tryb incognito") else tr("Incognito wyłączone"))
         refreshSuggestions()
     }
+
 
     fun commitEmoji(e: String) {
         if (internal == InternalTarget.EMOJI_SEARCH) {

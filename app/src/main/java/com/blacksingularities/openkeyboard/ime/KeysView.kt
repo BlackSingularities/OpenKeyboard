@@ -79,7 +79,11 @@ import kotlin.math.hypot
 import kotlin.math.ceil
 import kotlin.math.roundToInt
 
+/** Po tylu powtórzeniach przytrzymany Backspace przechodzi na usuwanie całych słów. */
+const val DELETE_WORDS_AFTER = 8
+
 /** Położenie klawisza w pikselach (w obrębie siatki klawiszy). */
+
 class KeyRect(val id: Int, val key: Key, val row: Int, val rect: Rect)
 
 /** Okienko z opcjami przytrzymanego klawisza. */
@@ -112,6 +116,8 @@ interface KeyActions {
     /** Słowo napisane gestem: ścieżka palca, środki liter, szerokość klawisza. */
     fun glide(path: List<Pt>, centers: Map<Char, Pt>, keyW: Float)
     fun gesture(action: GestureAction)
+    /** Następny (1) lub poprzedni (-1) język – przesuwanie przytrzymanej spacji. Fałsz, gdy jest jeden. */
+    fun languageStep(dir: Int): Boolean
 }
 
 /**
@@ -348,7 +354,7 @@ private fun KeyView(
                 val numpad = mode == KeyboardMode.NUMBER || mode == KeyboardMode.PHONE
                 Text(
                     label,
-                    color = fg,
+                    color = if (fg == colors.text && k.type == KeyType.CHAR && !numpad) colors.keyLabel else fg,
                     fontFamily = keyFontFamily(s.keyFont),
                     fontSize = ((if (label.length > 2) 15 else if (numpad) 24 else 21) * scale).sp,
                     fontWeight = if (s.boldLabels) FontWeight.SemiBold else FontWeight.Normal,
@@ -366,6 +372,15 @@ private fun KeyView(
                             modifier = Modifier.align(Alignment.TopEnd).padding(top = 2.dp, end = 5.dp),
                         )
                     }
+                }
+                val hint2 = k.hint2
+                if (hint2 != null && s.keyHints && !numpad) {
+                    Text(
+                        if (upper) hint2.uppercase() else hint2,
+                        color = colors.textDim.copy(alpha = colors.textDim.alpha * 0.8f),
+                        fontSize = (9 * scale).sp,
+                        modifier = Modifier.align(Alignment.TopStart).padding(top = 2.dp, start = 5.dp),
+                    )
                 }
             }
             KeyType.SPACE -> {
@@ -385,7 +400,24 @@ private fun KeyView(
             KeyType.LANGUAGE -> KeyIcon(Icons.Rounded.Language, fg)
             KeyType.EMOJI -> KeyIcon(Icons.Rounded.EmojiEmotions, fg)
             KeyType.NUMPAD -> KeyIcon(Icons.Rounded.Dialpad, fg)
-            KeyType.SYMBOLS, KeyType.SYMBOLS2, KeyType.ALPHA -> Text(
+            KeyType.SYMBOLS -> if (k.combo) {
+                // Klawisz podwójny: dotknięcie – symbole, przytrzymanie – emoji. Ikona dzielona po skosie.
+                Canvas(Modifier.matchParentSize()) {
+                    drawLine(fg.copy(alpha = 0.25f), Offset(size.width * 0.78f, size.height * 0.18f), Offset(size.width * 0.22f, size.height * 0.82f), strokeWidth = 1.dp.toPx())
+                }
+                Text(
+                    "?12",
+                    color = fg,
+                    fontSize = (11 * scale).sp,
+                    fontWeight = FontWeight.Medium,
+                    maxLines = 1,
+                    modifier = Modifier.align(Alignment.TopStart).padding(start = 5.dp, top = 3.dp),
+                )
+                Icon(Icons.Rounded.EmojiEmotions, null, tint = fg, modifier = Modifier.align(Alignment.BottomEnd).padding(end = 5.dp, bottom = 4.dp).size(15.dp))
+            } else {
+                Text(k.label, color = fg, fontSize = (14 * scale).sp, fontWeight = FontWeight.Medium, maxLines = 1, textAlign = TextAlign.Center)
+            }
+            KeyType.SYMBOLS2, KeyType.ALPHA -> Text(
                 k.label,
                 color = fg,
                 fontSize = (14 * scale).sp,
@@ -422,7 +454,7 @@ fun enterIcon(action: Int, multiLine: Boolean): ImageVector = if (multiLine) {
     }
 }
 
-private enum class TrackMode { NORMAL, POPUP, SPACE_CURSOR, DELETE_SWIPE, HIDE, DONE, LONG_DONE, GLIDE, SPACE_UP, SPACE_LANG }
+private enum class TrackMode { NORMAL, POPUP, SPACE_CURSOR, DELETE_SWIPE, HIDE, DONE, LONG_DONE, GLIDE, SPACE_UP, SPACE_LANG, SPACE_HELD }
 
 private class Track(val id: Long, var key: KeyRect, val down: Offset) {
     var mode = TrackMode.NORMAL
@@ -487,7 +519,10 @@ private class TouchTracker(
                     while (true) {
                         a.deleteRepeat()
                         n++
-                        delay((70 - n * 3).coerceAtLeast(28).toLong())
+                        // Po kilku znakach przytrzymany Backspace usuwa całe słowa – wolniej, żeby dało się puścić w porę.
+                        val words = settings.deleteWordsOnHold && n > DELETE_WORDS_AFTER
+                        if (n == DELETE_WORDS_AFTER + 1 && settings.deleteWordsOnHold) a.long()
+                        delay(if (words) 230L else (70 - n * 3).coerceAtLeast(35).toLong())
                     }
                 }
             }
@@ -498,7 +533,7 @@ private class TouchTracker(
     private fun scheduleLong(t: Track) {
         t.job?.cancel()
         val k = t.key.key
-        val hasLong = k.popup.isNotEmpty() || k.type in setOf(KeyType.SPACE, KeyType.SHIFT, KeyType.SYMBOLS, KeyType.LANGUAGE, KeyType.ENTER) ||
+        val hasLong = k.popup.isNotEmpty() || k.type in setOf(KeyType.SPACE, KeyType.SHIFT, KeyType.SYMBOLS, KeyType.LANGUAGE, KeyType.ENTER, KeyType.EMOJI) ||
             (k.text == "," && settings.commaLongPress != GestureAction.NONE)
         if (!hasLong) return
         t.job = scope.launch {
@@ -514,6 +549,15 @@ private class TouchTracker(
         if (k.text == "," && settings.commaLongPress != GestureAction.NONE) {
             t.mode = TrackMode.LONG_DONE
             a.gesture(settings.commaLongPress)
+            a.long()
+            return
+        }
+        if (k.type == KeyType.SPACE && settings.spaceSlideLanguage) {
+            // Przytrzymana spacja: przesunięcie w bok zmienia język, puszczenie bez ruchu – czynność przytrzymania.
+            t.mode = TrackMode.SPACE_HELD
+            t.lastX = t.down.x
+            t.words = 0
+            update(t.key.id to true, false, null)
             a.long()
             return
         }
@@ -548,6 +592,17 @@ private class TouchTracker(
                 if (i != pp.selected) {
                     pp.selected = i
                     a.tick()
+                }
+            }
+            TrackMode.SPACE_HELD -> {
+                val step = 42f * density
+                val d = p.x - t.lastX
+                if (abs(d) > step) {
+                    if (a.languageStep(if (d > 0) 1 else -1)) {
+                        t.words++
+                        a.tick()
+                    }
+                    t.lastX = p.x
                 }
             }
             TrackMode.SPACE_CURSOR -> {
@@ -639,6 +694,8 @@ private class TouchTracker(
             TrackMode.HIDE -> a.gesture(settings.swipeDown)
             TrackMode.SPACE_UP -> a.gesture(settings.spaceSwipeUp)
             TrackMode.SPACE_LANG -> a.gesture(settings.spaceSwipe)
+            TrackMode.SPACE_HELD -> if (t.words == 0) a.longPress(t.key.key)
+
             TrackMode.GLIDE -> {
                 t.points += p
                 onTrail(emptyList())

@@ -39,7 +39,8 @@ fun normalizeKey(word: String): String {
  * do tego indeks kluczy (wyszukiwanie prefiksów) i grupy wg długości (poprawianie literówek).
  */
 class WordList(val lang: String, val words: Array<String>, counts: IntArray) {
-    val keys: Array<String> = Array(words.size) { normalizeKey(words[it]) }
+    // Klucz równy słowu (większość słów) to ten sam obiekt – mniej pamięci przy dużych słownikach.
+    val keys: Array<String> = Array(words.size) { normalizeKey(words[it]).let { k -> if (k == words[it]) words[it] else k } }
 
     /** Siła słowa ~ log częstości (0 – najrzadsze). */
     val score: FloatArray = run {
@@ -92,7 +93,8 @@ class WordList(val lang: String, val words: Array<String>, counts: IntArray) {
 
     companion object {
         /** Wczytuje plik „słowo<TAB>liczba” (posortowany lub nie). */
-        fun parse(lang: String, lines: Sequence<String>, max: Int = 80_000): WordList {
+        fun parse(lang: String, lines: Sequence<String>, max: Int = 250_000): WordList {
+
             val w = ArrayList<String>()
             val c = ArrayList<Int>()
             val seen = HashSet<String>()

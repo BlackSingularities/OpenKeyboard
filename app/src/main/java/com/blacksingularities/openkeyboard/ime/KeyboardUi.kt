@@ -4,7 +4,6 @@ import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.background
-import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.runtime.getValue
@@ -44,8 +43,18 @@ import androidx.compose.material.icons.rounded.OpenWith
 import androidx.compose.material.icons.rounded.PictureInPicture
 import androidx.compose.material.icons.rounded.Search
 import androidx.compose.material.icons.rounded.SwapHoriz
-import androidx.compose.material.icons.rounded.Translate
 import androidx.compose.material.icons.rounded.Tune
+import androidx.compose.material.icons.rounded.ContentPasteGo
+import androidx.compose.material.icons.rounded.SelectAll
+import androidx.compose.material.icons.rounded.Language
+import androidx.compose.material.icons.rounded.Height
+import androidx.compose.material.icons.rounded.Functions
+import androidx.compose.material.icons.automirrored.rounded.Undo
+import androidx.compose.material.icons.automirrored.rounded.Redo
+import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.ui.composed
+import com.blacksingularities.openkeyboard.data.NavSpace
 import androidx.compose.material.icons.rounded.VisibilityOff
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LocalContentColor
@@ -119,7 +128,7 @@ fun KeyboardRoot(c: KeyboardController) {
                     Modifier
                         .align(Alignment.BottomCenter)
                         .offset { IntOffset(c.floatingOffset.x.roundToInt(), c.floatingOffset.y.roundToInt()) }
-                        .padding(bottom = navPadding(c) + 12.dp)
+                        .padding(bottom = navPadding(c) + 12.dp + s.bottomPadding.dp)
                         .width(width)
                         .then(boundsModifier)
                         .clip(RoundedCornerShape(20.dp))
@@ -149,7 +158,7 @@ fun KeyboardRoot(c: KeyboardController) {
                                 .padding(end = 8.dp)
                                 .size(20.dp)
                                 .clip(CircleShape)
-                                .combinedClickable(onClick = { c.toggleFloating() }),
+                                .tap(onClick = { c.toggleFloating() }),
                         )
                     }
                     KeyboardBody(c, landscape)
@@ -171,12 +180,35 @@ fun KeyboardRoot(c: KeyboardController) {
     }
 }
 
-/** Odstęp od dołu: większy z wcięcia systemowego i wysokości paska nawigacji klawiatury. */
+/**
+ * Odstęp od dołu ekranu. Domyślnie tylko tyle, ile system faktycznie zgłasza (klawiatura przylega
+ * do paska gestów), „Systemowy” – pełna wysokość paska nawigacji, „Brak” – do samej krawędzi.
+ */
 @Composable
 private fun navPadding(c: KeyboardController): androidx.compose.ui.unit.Dp {
     val density = androidx.compose.ui.platform.LocalDensity.current
     val insets = WindowInsets.navigationBars.getBottom(density)
-    return with(density) { maxOf(insets, c.service.navBarPx).toDp() }
+    val px = when (c.settings.navSpace) {
+        NavSpace.AUTO -> insets
+        NavSpace.SYSTEM -> maxOf(insets, c.service.navBarPx)
+        NavSpace.NONE -> 0
+    }
+    return with(density) { px.toDp() }
+}
+
+/**
+ * Dotknięcie i przytrzymanie dla elementów klawiatury. Własna obsługa dotyku zamiast `clickable`:
+ * okno klawiatury nie przyjmuje fokusu, a wtedy `clickable` potrafi zgubić dotknięcie.
+ */
+fun Modifier.tap(onLong: (() -> Unit)? = null, onClick: () -> Unit): Modifier = composed {
+    val click by rememberUpdatedState(onClick)
+    val long by rememberUpdatedState(onLong)
+    pointerInput(onLong != null) {
+        detectTapGestures(
+            onLongPress = if (onLong != null) { _ -> long?.invoke() } else null,
+            onTap = { click() },
+        )
+    }
 }
 
 @Composable
@@ -202,6 +234,7 @@ private fun KeyboardBody(c: KeyboardController, landscape: Boolean) {
                 Panel.LANGUAGES -> LanguagesPanel(c, panelHeight)
                 Panel.QUICK -> QuickPanel(c, panelHeight)
                 Panel.TEXT -> TextPanel(c, panelHeight)
+                Panel.SYMBOLS -> SymbolsPanel(c, panelHeight)
             }
         }
         val toast = c.toast
@@ -314,7 +347,7 @@ private fun ResizePanel(c: KeyboardController, landscape: Boolean) {
                 color = colors.onAccent,
                 fontWeight = FontWeight.Bold,
                 fontSize = 13.sp,
-                modifier = Modifier.clip(RoundedCornerShape(50)).background(colors.accent).combinedClickable { c.closePanel() }.padding(horizontal = 14.dp, vertical = 7.dp),
+                modifier = Modifier.clip(RoundedCornerShape(50)).background(colors.accent).tap { c.closePanel() }.padding(horizontal = 14.dp, vertical = 7.dp),
             )
         }
     }
@@ -359,7 +392,11 @@ private class ControllerActions(val c: KeyboardController) : KeyActions {
             true
         } else false
         KeyType.SHIFT -> { c.lockShift(); true }
-        KeyType.SYMBOLS -> { c.switchMode(KeyboardMode.NUMBER); true }
+        KeyType.SYMBOLS -> {
+            if (key.combo) c.openPanel(Panel.EMOJI) else c.switchMode(KeyboardMode.NUMBER)
+            true
+        }
+        KeyType.EMOJI -> { c.openPanel(Panel.CLIPBOARD); true }
         KeyType.LANGUAGE -> { c.openPanel(Panel.LANGUAGES); true }
         KeyType.ENTER -> if (c.settings.enterLongPress != GestureAction.NONE) {
             c.runGesture(c.settings.enterLongPress)
@@ -376,6 +413,7 @@ private class ControllerActions(val c: KeyboardController) : KeyActions {
     override fun long() = c.feedback.long()
     override fun glide(path: List<Pt>, centers: Map<Char, Pt>, keyW: Float) = c.onGlide(path, centers, keyW)
     override fun gesture(action: GestureAction) = c.runGesture(action)
+    override fun languageStep(dir: Int): Boolean = c.languageStep(dir)
 }
 
 /** Tryb jednej ręki: klawisze zwężone, obok kolumna z przełącznikami. */
@@ -418,7 +456,7 @@ private fun TopBar(c: KeyboardController) {
         when {
             c.internal != null -> InternalBar(c)
             c.panel != Panel.KEYS -> PanelBar(c)
-            c.toolbarOpen || (c.suggestions.items.isEmpty() && c.extras.isEmpty()) -> Toolbar(c)
+            c.toolbarOpen || c.suggestions.items.isEmpty() -> Toolbar(c)
             else -> SuggestionStrip(c)
         }
     }
@@ -432,7 +470,7 @@ fun StripIcon(icon: ImageVector, label: String, active: Boolean = false, onLong:
             .size(40.dp)
             .clip(CircleShape)
             .background(if (active) colors.accent else androidx.compose.ui.graphics.Color.Transparent)
-            .combinedClickable(onClickLabel = label, onLongClick = onLong, onClick = onClick),
+            .tap(onLong = onLong, onClick = onClick),
         contentAlignment = Alignment.Center,
     ) {
         Icon(icon, label, tint = if (active) colors.onAccent else colors.text, modifier = Modifier.size(21.dp))
@@ -453,6 +491,12 @@ private fun Toolbar(c: KeyboardController) {
         ) {
             for (item in c.settings.toolbar) ToolbarButton(c, item)
         }
+        // Schowek, wynik rachunku, emoji do słowa – także wtedy, gdy widać narzędzia.
+        if (c.extras.isNotEmpty()) {
+            Row(Modifier.padding(horizontal = 4.dp), horizontalArrangement = Arrangement.spacedBy(4.dp), verticalAlignment = Alignment.CenterVertically) {
+                for (e in c.extras.take(2)) ExtraChip(c, e)
+            }
+        }
         StripIcon(Icons.Rounded.KeyboardHide, tr("Schowaj klawiaturę"), onLong = { c.showImePicker() }) { c.hide() }
     }
 }
@@ -466,7 +510,14 @@ private fun ToolbarButton(c: KeyboardController, item: ToolbarItem) {
         ToolbarItem.EDIT -> StripIcon(Icons.Rounded.OpenWith, tr("Kursor i zaznaczanie")) { c.openPanel(Panel.EDIT) }
         ToolbarItem.TEXT_TOOLS -> StripIcon(Icons.Rounded.TextFields, tr("Narzędzia tekstu"), active = c.fancy != null) { c.openPanel(Panel.TEXT) }
         ToolbarItem.VOICE -> StripIcon(Icons.Rounded.Mic, tr("Dyktowanie")) { c.openPanel(Panel.VOICE) }
-        ToolbarItem.TRANSLATE -> StripIcon(Icons.Rounded.Translate, tr("Tłumacz")) { c.openInternal(InternalTarget.TRANSLATE) }
+        ToolbarItem.PASTE -> StripIcon(Icons.Rounded.ContentPasteGo, tr("Wklej")) { c.contextAction(android.R.id.paste) }
+        ToolbarItem.UNDO -> StripIcon(Icons.AutoMirrored.Rounded.Undo, tr("Cofnij"), onLong = { c.undoRedo(true) }) { c.undoRedo(false) }
+        ToolbarItem.REDO -> StripIcon(Icons.AutoMirrored.Rounded.Redo, tr("Ponów")) { c.undoRedo(true) }
+        ToolbarItem.SELECT_ALL -> StripIcon(Icons.Rounded.SelectAll, tr("Zaznacz wszystko")) { c.contextAction(android.R.id.selectAll) }
+        ToolbarItem.LANGUAGES -> StripIcon(Icons.Rounded.Language, tr("Języki"), onLong = { c.showImePicker() }) { c.openPanel(Panel.LANGUAGES) }
+        ToolbarItem.RESIZE -> StripIcon(Icons.Rounded.Height, tr("Rozmiar klawiatury")) { c.openPanel(Panel.RESIZE) }
+        ToolbarItem.INCOGNITO -> StripIcon(Icons.Rounded.VisibilityOff, tr("Incognito"), active = s.forceIncognito) { c.toggleIncognito() }
+        ToolbarItem.SYMBOLS -> StripIcon(Icons.Rounded.Functions, tr("Symbole"), active = c.panel == Panel.SYMBOLS) { c.openPanel(Panel.SYMBOLS) }
         ToolbarItem.ONE_HANDED -> StripIcon(Icons.Rounded.SwapHoriz, tr("Jedna ręka"), active = s.oneHanded != OneHanded.OFF) { c.toggleOneHanded() }
         ToolbarItem.FLOATING -> StripIcon(Icons.Rounded.PictureInPicture, tr("Klawiatura pływająca"), active = s.floating) { c.toggleFloating() }
         ToolbarItem.NUMPAD -> StripIcon(Icons.Rounded.Dialpad, tr("Klawiatura numeryczna"), active = c.layout.mode == KeyboardMode.NUMBER) {
@@ -499,8 +550,8 @@ private fun SuggestionStrip(c: KeyboardController) {
                         .weight(1f)
                         .fillMaxHeight()
                         .then(
-                            if (sug != null) Modifier.combinedClickable(
-                                onLongClick = { c.blockSuggestion(sug) },
+                            if (sug != null) Modifier.tap(
+                                onLong = { c.blockSuggestion(sug) },
                                 onClick = { c.pickSuggestion(sug) },
                             ) else Modifier,
                         ),
@@ -551,7 +602,7 @@ private fun ExtraChip(c: KeyboardController, e: Suggestion) {
         modifier = Modifier
             .clip(RoundedCornerShape(50))
             .background(colors.key)
-            .combinedClickable { c.pickSuggestion(e) }
+            .tap { c.pickSuggestion(e) }
             .padding(horizontal = if (e.kind == SuggestionKind.EMOJI) 8.dp else 12.dp, vertical = 5.dp),
     )
 }
@@ -569,6 +620,7 @@ private fun PanelBar(c: KeyboardController) {
         Panel.QUICK -> tr("Szybkie ustawienia")
         Panel.TEXT -> tr("Narzędzia tekstu")
         Panel.RESIZE -> tr("Rozmiar klawiatury")
+        Panel.SYMBOLS -> tr("Symbole")
         Panel.KEYS -> ""
     }
     Row(Modifier.fillMaxSize().padding(horizontal = 4.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -581,13 +633,13 @@ private fun PanelBar(c: KeyboardController) {
     }
 }
 
-/** Pole wpisywania w klawiaturze: wyszukiwanie emoji albo tekst do przetłumaczenia. */
+/** Pole wpisywania w klawiaturze: wyszukiwanie emoji. */
 @Composable
 private fun InternalBar(c: KeyboardController) {
     val colors = LocalKb.current
     Row(Modifier.fillMaxSize().padding(horizontal = 4.dp), verticalAlignment = Alignment.CenterVertically) {
         Icon(
-            if (c.internal == InternalTarget.TRANSLATE) Icons.Rounded.Translate else Icons.Rounded.Search,
+            Icons.Rounded.Search,
             null,
             tint = colors.textDim,
             modifier = Modifier.padding(horizontal = 8.dp).size(18.dp),
@@ -601,11 +653,7 @@ private fun InternalBar(c: KeyboardController) {
                 .padding(horizontal = 12.dp),
             contentAlignment = Alignment.CenterStart,
         ) {
-            val placeholder = if (c.internal == InternalTarget.TRANSLATE) {
-                tr("Tekst do przetłumaczenia na: {0}", Languages.get(c.settings.translateTarget).native)
-            } else {
-                tr("Szukaj emoji (np. serce, kot, party)")
-            }
+            val placeholder = tr("Szukaj emoji (np. serce, kot, party)")
             Text(
                 c.internalText.ifEmpty { placeholder } + if (c.internalText.isNotEmpty()) "▏" else "",
                 color = if (c.internalText.isEmpty()) colors.textDim else colors.text,
@@ -614,13 +662,12 @@ private fun InternalBar(c: KeyboardController) {
                 overflow = TextOverflow.StartEllipsis,
             )
         }
-        StripIcon(Icons.Rounded.Close, tr("Zamknij")) {
-            c.closeInternal(if (c.internal == InternalTarget.EMOJI_SEARCH) Panel.EMOJI else Panel.KEYS)
-        }
+        StripIcon(Icons.Rounded.Close, tr("Zamknij")) { c.closeInternal(Panel.EMOJI) }
     }
 }
 
-/** Wyniki pod paskiem wewnętrznego pola (emoji / tłumaczenie) – nad klawiszami. */
+/** Wyniki pod paskiem wewnętrznego pola (wyszukiwanie emoji) – nad klawiszami. */
+
 @Composable
 fun InternalResults(c: KeyboardController) {
     val colors = LocalKb.current
@@ -645,69 +692,12 @@ fun InternalResults(c: KeyboardController) {
                         fontSize = 26.sp,
                         modifier = Modifier
                             .clip(RoundedCornerShape(10.dp))
-                            .combinedClickable { c.commitEmoji(e) }
+                            .tap { c.commitEmoji(e) }
                             .padding(horizontal = 6.dp, vertical = 4.dp),
-                    )
-                }
-            }
-        }
-        InternalTarget.TRANSLATE -> {
-            Row(
-                Modifier.fillMaxWidth().height(46.dp).padding(horizontal = 8.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                LangChooser(c)
-                Spacer(Modifier.width(8.dp))
-                Text(
-                    when {
-                        c.translateBusy -> tr("Tłumaczenie…")
-                        c.translateResult != null -> c.translateResult!!
-                        else -> tr("Wynik pojawi się tutaj")
-                    },
-                    color = if (c.translateResult != null) colors.text else colors.textDim,
-                    fontSize = 14.sp,
-                    maxLines = 2,
-                    overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.weight(1f),
-                )
-                if (c.translateResult != null && !c.translateBusy) {
-                    Text(
-                        tr("Wstaw"),
-                        color = colors.onAccent,
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 13.sp,
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(50))
-                            .background(colors.accent)
-                            .combinedClickable { c.insertTranslation() }
-                            .padding(horizontal = 14.dp, vertical = 7.dp),
                     )
                 }
             }
         }
         null -> {}
     }
-}
-
-/** Wybór języka docelowego tłumaczenia (dotknięcie – następny z listy). */
-@Composable
-private fun LangChooser(c: KeyboardController) {
-    val colors = LocalKb.current
-    val targets = (c.settings.languages + listOf("en", "pl", "de", "es", "fr", "it", "uk")).distinct()
-    val cur = c.settings.translateTarget
-    Text(
-        "→ " + cur.uppercase(),
-        color = colors.text,
-        fontSize = 13.sp,
-        fontWeight = FontWeight.Bold,
-        modifier = Modifier
-            .clip(RoundedCornerShape(50))
-            .background(colors.key)
-            .combinedClickable {
-                val next = targets[(targets.indexOf(cur) + 1).mod(targets.size)]
-                c.updateSettings { it.copy(translateTarget = next) }
-                c.runTranslate()
-            }
-            .padding(horizontal = 10.dp, vertical = 6.dp),
-    )
 }

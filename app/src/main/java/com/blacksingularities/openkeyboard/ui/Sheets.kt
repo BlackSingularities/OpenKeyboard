@@ -35,6 +35,14 @@ import androidx.compose.material.icons.rounded.RoundedCorner
 import androidx.compose.material.icons.rounded.SpaceBar
 import androidx.compose.material.icons.rounded.SwapHoriz
 import androidx.compose.material.icons.rounded.Translate
+import androidx.compose.material.icons.rounded.ContentPasteGo
+import androidx.compose.material.icons.rounded.SelectAll
+import androidx.compose.material.icons.rounded.Language
+import androidx.compose.material.icons.rounded.VisibilityOff
+import androidx.compose.material.icons.rounded.Functions
+import androidx.compose.material.icons.automirrored.rounded.Undo
+import androidx.compose.material.icons.automirrored.rounded.Redo
+import androidx.compose.ui.graphics.toArgb
 import androidx.compose.material.icons.rounded.Tune
 import androidx.compose.material.icons.rounded.TextFields
 import androidx.compose.material3.CircularProgressIndicator
@@ -304,13 +312,13 @@ fun ThemeSheet(vm: AppViewModel) {
         Group(tr("Kolor akcentu")) {
             Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(10.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 KeyboardThemes.accents.forEachIndexed { i, c ->
-                    val sel = i == s.accent
+                    val sel = i == s.accent && s.accentColor == 0L
                     Box(
                         Modifier
                             .size(34.dp)
                             .clip(CircleShape)
                             .background(if (sel) Color.White else Color.White.copy(alpha = 0.12f))
-                            .clickable { set { it.copy(accent = i) } }
+                            .clickable { set { it.copy(accent = i, accentColor = 0) } }
                             .padding(if (sel) 3.dp else 2.dp)
                             .clip(CircleShape)
                             .background(c)
@@ -318,7 +326,9 @@ fun ThemeSheet(vm: AppViewModel) {
                     )
                 }
             }
+            AccentPicker(vm)
         }
+
         Group(null) {
             CompactChoice(
                 Icons.Rounded.Tune,
@@ -451,7 +461,14 @@ private fun toolbarIcon(t: ToolbarItem): ImageVector = when (t) {
     ToolbarItem.EDIT -> Icons.Rounded.OpenWith
     ToolbarItem.TEXT_TOOLS -> Icons.Rounded.TextFields
     ToolbarItem.VOICE -> Icons.Rounded.Mic
-    ToolbarItem.TRANSLATE -> Icons.Rounded.Translate
+    ToolbarItem.PASTE -> Icons.Rounded.ContentPasteGo
+    ToolbarItem.UNDO -> Icons.AutoMirrored.Rounded.Undo
+    ToolbarItem.REDO -> Icons.AutoMirrored.Rounded.Redo
+    ToolbarItem.SELECT_ALL -> Icons.Rounded.SelectAll
+    ToolbarItem.LANGUAGES -> Icons.Rounded.Language
+    ToolbarItem.RESIZE -> Icons.Rounded.Height
+    ToolbarItem.INCOGNITO -> Icons.Rounded.VisibilityOff
+    ToolbarItem.SYMBOLS -> Icons.Rounded.Functions
     ToolbarItem.ONE_HANDED -> Icons.Rounded.SwapHoriz
     ToolbarItem.FLOATING -> Icons.Rounded.PictureInPicture
     ToolbarItem.NUMPAD -> Icons.Rounded.Dialpad
@@ -464,7 +481,14 @@ private fun toolbarName(t: ToolbarItem): String = when (t) {
     ToolbarItem.EDIT -> tr("Kursor i zaznaczanie")
     ToolbarItem.TEXT_TOOLS -> tr("Narzędzia tekstu")
     ToolbarItem.VOICE -> tr("Dyktowanie")
-    ToolbarItem.TRANSLATE -> tr("Tłumacz")
+    ToolbarItem.PASTE -> tr("Wklej")
+    ToolbarItem.UNDO -> tr("Cofnij")
+    ToolbarItem.REDO -> tr("Ponów")
+    ToolbarItem.SELECT_ALL -> tr("Zaznacz wszystko")
+    ToolbarItem.LANGUAGES -> tr("Języki")
+    ToolbarItem.RESIZE -> tr("Rozmiar klawiatury")
+    ToolbarItem.INCOGNITO -> tr("Incognito")
+    ToolbarItem.SYMBOLS -> tr("Symbole")
     ToolbarItem.ONE_HANDED -> tr("Jedna ręka")
     ToolbarItem.FLOATING -> tr("Klawiatura pływająca")
     ToolbarItem.NUMPAD -> tr("Klawiatura numeryczna")
@@ -476,7 +500,7 @@ fun ToolbarSheet(vm: AppViewModel) {
     val s = vm.settings
     Panel(tr("Pasek narzędzi"), onClose = { vm.sheet = null }) {
         Text(
-            tr("Pasek pokazuje się nad klawiszami, gdy nie ma podpowiedzi (albo po dotknięciu ikony siatki). Włącz potrzebne przyciski i ustaw ich kolejność."),
+            tr("Pasek widać nad klawiszami od razu po otwarciu klawiatury – zanim zaczniesz pisać (i po dotknięciu ikony siatki obok podpowiedzi). Włącz potrzebne przyciski i ustaw ich kolejność; pasek przewija się w bok, gdy jest ich dużo."),
             color = Palette.TextDim,
             fontSize = 12.sp,
             lineHeight = 16.sp,
@@ -524,14 +548,12 @@ fun AboutSheet(vm: AppViewModel) {
             ActionRow(Icons.Rounded.EmojiEmotions, "Unicode Emoji", tr("Lista emoji, nazwy i odcienie skóry (emoji-test.txt) · licencja Unicode")) {
                 sys.openUrl("https://unicode.org/emoji/")
             }
-            ActionRow(Icons.Rounded.Translate, "MyMemory", tr("Darmowe tłumaczenia w klawiaturze – tekst wysyłany tylko po użyciu tłumacza")) {
-                sys.openUrl("https://mymemory.translated.net/")
-            }
+
             ActionRow(Icons.Rounded.Mic, tr("Rozpoznawanie mowy systemu"), tr("Dyktowanie korzysta z usługi zainstalowanej w telefonie")) {}
         }
         Group(tr("Prywatność")) {
             Text(
-                tr("Wszystko, czego klawiatura się uczy (słowa, pary słów, schowek, statystyki), zostaje na telefonie. Aplikacja łączy się z internetem tylko, by pobrać słownik, sprawdzić aktualizację na GitHubie albo przetłumaczyć tekst, gdy o to poprosisz."),
+                tr("Wszystko, czego klawiatura się uczy (słowa, pary słów, schowek, statystyki), zostaje na telefonie. Aplikacja łączy się z internetem tylko, by pobrać słownik albo sprawdzić aktualizację na GitHubie."),
                 color = Palette.TextDim,
                 fontSize = 12.sp,
                 lineHeight = 17.sp,
@@ -613,7 +635,7 @@ fun GesturesSheet(vm: AppViewModel) {
             GestureRow(Icons.Rounded.Add, tr("Przecinek – przytrzymanie"), s.commaLongPress, all) { v -> vm.update { it.copy(commaLongPress = v) } }
         }
         Text(
-            tr("Przytrzymanie przecinka ustawione na „Nic” pokazuje znaki ; : „ ”."),
+            tr("Przytrzymanie przecinka ustawione na „Nic” pokazuje znaki ; : „ ”. Przytrzymaną spację możesz też przesunąć w bok, aby zmienić język (opcja w sekcji Języki)."),
             color = Palette.TextDim,
             fontSize = 11.sp,
             modifier = Modifier.padding(horizontal = 6.dp),
@@ -899,5 +921,45 @@ fun DayNightSection(vm: AppViewModel) {
                 for (id in ids) Chip(name(id), id == s.nightTheme) { vm.update { it.copy(nightTheme = id) } }
             }
         }
+    }
+}
+
+// ───────────────────────── dowolny akcent ─────────────────────────
+
+/** Dowolny kolor akcentu (barwa, nasycenie, jasność) i litery klawiszy w tym kolorze. */
+@Composable
+private fun AccentPicker(vm: AppViewModel) {
+    val s = vm.settings
+    val current = if (s.accentColor != 0L) s.accentColor else (KeyboardThemes.accentOf(s).toArgb().toLong() and 0xFFFFFFFFL)
+    val hsv = remember(current) { FloatArray(3).also { android.graphics.Color.colorToHSV(current.toInt(), it) } }
+    fun fromHsv(h: Float, sat: Float, v: Float): Long = android.graphics.Color.HSVToColor(floatArrayOf(h, sat, v)).toLong() and 0xFFFFFFFFL
+    fun setColor(v: Long) = vm.update { it.copy(accentColor = v) }
+    Row(Modifier.fillMaxWidth().padding(horizontal = 10.dp, vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+        Box(Modifier.size(26.dp).clip(CircleShape).background(Color(current.toInt())).border(1.dp, Color.White.copy(alpha = 0.3f), CircleShape))
+        Column(Modifier.weight(1f).padding(horizontal = 12.dp)) {
+            Text(tr("Dowolny kolor"), fontSize = 14.sp)
+            Text(
+                if (s.accentColor != 0L) "#" + "%06X".format(current and 0xFFFFFF) else tr("Przesuń suwaki, aby ustawić własny"),
+                fontSize = 11.sp,
+                color = Palette.TextDim,
+            )
+        }
+        if (s.accentColor != 0L) Chip(tr("Z palety"), false) { vm.update { it.copy(accentColor = 0) } }
+    }
+    SliderRow(Icons.Rounded.Palette, tr("Barwa"), hsv[0].toInt(), 0..360, 1, { "$it°" }) { v -> setColor(fromHsv(v.toFloat(), hsv[1].coerceAtLeast(0.05f), hsv[2].coerceAtLeast(0.3f))) }
+    SliderRow(Icons.Rounded.Palette, tr("Nasycenie"), (hsv[1] * 100).toInt(), 0..100, 1, { "$it%" }) { v -> setColor(fromHsv(hsv[0], v / 100f, hsv[2])) }
+    SliderRow(Icons.Rounded.Palette, tr("Jasność"), (hsv[2] * 100).toInt(), 0..100, 1, { "$it%" }) { v -> setColor(fromHsv(hsv[0], hsv[1], v / 100f)) }
+    Row(Modifier.fillMaxWidth().padding(horizontal = 10.dp, vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
+        RowIcon(Icons.Rounded.TextFields)
+        Column(Modifier.weight(1f).padding(horizontal = 12.dp)) {
+            Text(tr("Litery w kolorze akcentu"), fontSize = 14.sp)
+            Text(tr("Znaki na klawiszach liter mają kolor akcentu"), fontSize = 11.sp, color = Palette.TextDim)
+        }
+        Switch(
+            checked = s.accentLabels,
+            onCheckedChange = { v -> vm.update { it.copy(accentLabels = v) } },
+            modifier = Modifier.scale(0.82f),
+            colors = SwitchDefaults.colors(checkedTrackColor = Palette.Amber, checkedThumbColor = Palette.Ink),
+        )
     }
 }

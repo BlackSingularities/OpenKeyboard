@@ -22,6 +22,8 @@ data class KbColors(
     val light: Boolean,
     val background2: Color? = null,
     val flat: Boolean = false,
+    /** Kolor znaków na klawiszach liter (np. w kolorze akcentu). */
+    val keyLabel: Color = text,
 )
 
 /** Motyw z galerii; [dark] – do automatycznego wyboru motywu nocnego/dziennego. */
@@ -73,7 +75,7 @@ object KeyboardThemes {
         },
     )
 
-    private fun onAccent(a: Color): Color {
+    fun onAccent(a: Color): Color {
         val l = 0.299f * a.red + 0.587f * a.green + 0.114f * a.blue
         return if (l > 0.6f) Color.Black else Color.White
     }
@@ -115,10 +117,20 @@ object KeyboardThemes {
     fun themeId(s: KeyboardSettings, systemDark: Boolean): String =
         if (s.autoDayNight) (if (systemDark) s.nightTheme else s.dayTheme) else s.theme
 
+    /** Akcent wybrany przez użytkownika: dowolny kolor albo kolor z palety. */
+    fun accentOf(s: KeyboardSettings): Color =
+        if (s.accentColor != 0L) Color(s.accentColor.toInt()) else accents.getOrElse(s.accent) { accents.first() }
+
     fun colors(s: KeyboardSettings, systemDark: Boolean = true): KbColors {
         val id = themeId(s, systemDark)
-        if (id == "custom") return custom(s)
-        val preset = presets.firstOrNull { it.id == id } ?: presets.first()
-        return preset.build(accents.getOrElse(s.accent) { accents.first() })
+        val base = if (id == "custom") {
+            custom(s)
+        } else {
+            val preset = presets.firstOrNull { it.id == id } ?: presets.first()
+            val built = preset.build(accentOf(s))
+            // Dowolny akcent wygrywa także w jasnych motywach (tam biel z palety jest zastępowana).
+            if (s.accentColor != 0L) built.copy(accent = Color(s.accentColor.toInt()), onAccent = onAccent(Color(s.accentColor.toInt()))) else built
+        }
+        return if (s.accentLabels) base.copy(keyLabel = base.accent) else base
     }
 }

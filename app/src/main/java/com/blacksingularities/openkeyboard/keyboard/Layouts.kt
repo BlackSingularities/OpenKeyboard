@@ -1,5 +1,6 @@
 package com.blacksingularities.openkeyboard.keyboard
 
+import com.blacksingularities.openkeyboard.data.EmojiKey
 import com.blacksingularities.openkeyboard.data.KeyboardSettings
 import com.blacksingularities.openkeyboard.data.Lang
 import com.blacksingularities.openkeyboard.data.Languages
@@ -8,7 +9,9 @@ enum class KeyType { CHAR, TEXT, SHIFT, DELETE, ENTER, SPACE, SYMBOLS, SYMBOLS2,
 
 /**
  * Klawisz: [text] – wstawiany tekst (dla CHAR/TEXT), [label] – napis na klawiszu,
- * [popup] – znaki pod przytrzymaniem, [hint] – mały znak w rogu, [width] – szerokość w jednostkach.
+ * [popup] – znaki pod przytrzymaniem, [hint] – mały znak w prawym rogu, [hint2] – drugi znak
+ * w lewym rogu (cyfra przy symbolach), [width] – szerokość w jednostkach, [combo] – klawisz
+ * „?123” połączony z emoji (przytrzymanie otwiera emoji).
  */
 data class Key(
     val type: KeyType,
@@ -17,6 +20,8 @@ data class Key(
     val popup: List<String> = emptyList(),
     val hint: String? = null,
     val width: Float = 1f,
+    val hint2: String? = null,
+    val combo: Boolean = false,
 )
 
 data class KeyboardLayout(val rows: List<List<Key>>, val units: Float, val mode: KeyboardMode)
@@ -43,6 +48,13 @@ private val letterRows: Map<String, List<String>> = mapOf(
     "tr" to listOf("qwertyuıopğü", "asdfghjklşi", "zxcvbnmöç"),
 )
 
+/**
+ * Symbole przypisane do liter (jak w SwiftKey) – wg pozycji w rzędzie, więc działają w każdym
+ * układzie: Q %, W ^, E ~, R |, T [, Y ], U <, I >, O {, P }, A @, S #, D &, F *, G -, H +, J =,
+ * K (, L ), Z _, X $, C ", V ', B :, N ;, M /.
+ */
+val letterSymbols: List<String> = listOf("%^~|[]<>{}€£", "@#&*-+=()\\'", "_$\"':;/!?")
+
 private val superscripts = mapOf(
     '1' to "¹½⅓¼⅛", '2' to "²⅔", '3' to "³¾⅜", '4' to "⁴", '5' to "⁵⅝", '6' to "⁶", '7' to "⁷⅞", '8' to "⁸", '9' to "⁹", '0' to "⁰ⁿ∅",
 )
@@ -50,7 +62,7 @@ private val superscripts = mapOf(
 private val symbolPopups = mapOf(
     "-" to "–—_·", "+" to "±", "(" to "[{<", ")" to "]}>", "/" to "\\", "&" to "§", "#" to "№",
     "*" to "★†‡", "\"" to "„“”«»", "'" to "‚‘’‹›", "!" to "¡", "?" to "¿", "%" to "‰", "=" to "≠≈∞",
-    "$" to "€£¥¢₽₹₩", "." to "…", "<" to "≤«", ">" to "≥»",
+    "$" to "€£¥¢₽₹₩", "." to "…", "<" to "≤«", ">" to "≥»", "@" to "©®", "~" to "≈", "^" to "°",
 )
 
 private fun symbolKey(s: String) = Key(KeyType.CHAR, s, popup = symbolPopups[s]?.map { it.toString() } ?: emptyList())
@@ -79,11 +91,14 @@ object Layouts {
         val rows = letterRows[layoutId] ?: letterRows.getValue("qwerty")
         val units = maxOf(rows[0].length, rows[1].length, rows[2].length + 3, 10).toFloat()
         val out = mutableListOf<List<Key>>()
-        if (s.numberRow) out += "1234567890".map { c -> Key(KeyType.CHAR, c.toString(), popup = superscripts[c]?.map { it.toString() } ?: emptyList()) }
+        // W polu hasła cyfry zawsze pod ręką.
+        val numberRow = s.numberRow || field == FieldKind.PASSWORD
+        if (numberRow) out += "1234567890".map { c -> Key(KeyType.CHAR, c.toString(), popup = superscripts[c]?.map { it.toString() } ?: emptyList()) }
         rows.forEachIndexed { r, letters ->
             val row = letters.mapIndexed { i, c ->
-                val digit = if (r == 0 && !s.numberRow && i < 10) "1234567890"[i].toString() else null
-                letterKey(c, lang, digit, s.keyHints)
+                val digit = if (r == 0 && !numberRow && i < 10) "1234567890"[i].toString() else null
+                val symbol = if (s.symbolKeys && field != FieldKind.PASSWORD) letterSymbols[r].getOrNull(i)?.toString() else null
+                letterKey(c, lang, digit, symbol, s.keyHints)
             }
             if (r == 2) {
                 val side = ((units - row.size) / 2f).coerceAtLeast(1f)
@@ -96,22 +111,27 @@ object Layouts {
         return KeyboardLayout(out, units, KeyboardMode.ALPHA)
     }
 
-    private fun letterKey(c: Char, lang: Lang, digit: String?, hints: Boolean): Key {
+    /** Klawisz litery: pierwsza opcja okienka przytrzymania to znak pokazany w rogu. */
+    private fun letterKey(c: Char, lang: Lang, digit: String?, symbol: String?, hints: Boolean): Key {
         val primary = lang.accents[c].orEmpty()
         val generic = Languages.genericAccents[c].orEmpty().filter { it !in primary }
         val popup = buildList {
+            if (symbol != null) add(symbol)
             if (digit != null) add(digit)
             primary.forEach { add(it.toString()) }
             // Ogólne znaki tylko dla alfabetu łacińskiego – w cyrylicy i greckim byłyby szumem.
             if (c in 'a'..'z') generic.forEach { add(it.toString()) }
-        }
+        }.distinct()
         val hint = when {
             !hints -> null
+            symbol != null -> symbol
             digit != null -> digit
             primary.isNotEmpty() -> primary.first().toString()
             else -> null
         }
-        return Key(KeyType.CHAR, c.toString(), popup = popup, hint = hint)
+        // Przy symbolach cyfra (albo polski znak) zostaje widoczna w lewym rogu – to drugi znak.
+        val hint2 = if (hints && symbol != null) digit ?: primary.firstOrNull()?.toString() else null
+        return Key(KeyType.CHAR, c.toString(), popup = popup, hint = hint, hint2 = hint2)
     }
 
     private fun bottomRow(
@@ -124,14 +144,17 @@ object Layouts {
         lang: Lang,
     ): List<Key> {
         val row = mutableListOf<Key>()
-        row += Key(switchType, label = switchLabel, width = 1.5f)
+        // Emoji tylko tam, gdzie mają sens – nie w adresach, hasłach i liczbach.
+        val emojiField = field == FieldKind.TEXT || field == FieldKind.SEARCH
+        val combo = emojiField && s.emojiKeyMode == EmojiKey.COMBINED && switchType == KeyType.SYMBOLS
+        row += Key(switchType, label = switchLabel, width = 1.5f, combo = combo)
+        if (emojiField && s.emojiKeyMode == EmojiKey.SEPARATE) row += Key(KeyType.EMOJI)
         when (field) {
-            FieldKind.EMAIL -> row += Key(KeyType.CHAR, "@")
-            FieldKind.URL -> row += Key(KeyType.CHAR, "/")
-            else -> if (s.commaKey) row += Key(KeyType.CHAR, ",", popup = listOf(";", ":", "„", "”"))
+            FieldKind.EMAIL -> row += Key(KeyType.CHAR, "@", popup = listOf("_", "-", "+"))
+            FieldKind.URL -> row += Key(KeyType.CHAR, "/", popup = listOf(":", "?", "=", "&", "#", "_", "-", "~"))
+            else -> if (s.commaKey) row += Key(KeyType.CHAR, ",", popup = listOf(";", ":", "„", "”", "'", "\"", "-"))
         }
         if (s.languageKey && languageCount > 1) row += Key(KeyType.LANGUAGE)
-        if (s.emojiKey) row += Key(KeyType.EMOJI)
         val tail = mutableListOf<Key>()
         when (field) {
             FieldKind.EMAIL, FieldKind.URL -> tail += Key(KeyType.TEXT, ".com", label = ".com", popup = listOf(".pl", ".eu", ".org", ".net", ".io", ".de", ".uk"))
@@ -139,10 +162,24 @@ object Layouts {
         }
         tail += Key(KeyType.CHAR, ".", popup = periodPopup)
         tail += Key(KeyType.ENTER, width = 1.5f)
-        val used = row.sumOf { it.width.toDouble() } + tail.sumOf { it.width.toDouble() }
+        var used = row.sumOf { it.width.toDouble() } + tail.sumOf { it.width.toDouble() }
+        // Ciasno (emoji + język + przecinek) – węższe ?123 i Enter, żeby spacja została wygodna.
+        if (units - used < 3.5) {
+            row[0] = row[0].copy(width = 1.25f)
+            tail[tail.lastIndex] = tail.last().copy(width = 1.25f)
+            used -= 0.5
+        }
         val space = (units - used).toFloat().coerceAtLeast(2f)
-        return row + Key(KeyType.SPACE, " ", label = lang.native, width = space) + tail
+        return row + Key(KeyType.SPACE, " ", label = spaceLabel(s, lang), width = space) + tail
     }
+
+    /** Napis na spacji: bieżący język albo wszystkie włączone naraz („PL · EN”). */
+    private fun spaceLabel(s: KeyboardSettings, lang: Lang): String =
+        if (s.multilingual && s.languages.size > 1) {
+            (listOf(lang.code) + s.languages.filter { it != lang.code }).take(3).joinToString(" · ") { it.uppercase() }
+        } else {
+            lang.native
+        }
 
     private fun symbols(lang: Lang, s: KeyboardSettings, field: FieldKind, second: Boolean): KeyboardLayout {
         val units = 10f
@@ -162,7 +199,8 @@ object Layouts {
                 listOf("%", "©", "®", "™", "✓", "[", "]").map(::symbolKey) +
                 Key(KeyType.DELETE, width = 1.5f)
         }
-        val bottom = bottomRow(s.copy(emojiKey = true, languageKey = false), field, 1, units, KeyType.ALPHA, "ABC", lang)
+        val emoji = if (s.emojiKeyMode == EmojiKey.OFF) EmojiKey.OFF else EmojiKey.SEPARATE
+        val bottom = bottomRow(s.copy(emojiKeyMode = emoji, languageKey = false), field, 1, units, KeyType.ALPHA, "ABC", lang)
             .map { if (it.type == KeyType.SPACE) it.copy(label = "") else it }
         rows += bottom
         return KeyboardLayout(rows, units, if (second) KeyboardMode.SYMBOLS2 else KeyboardMode.SYMBOLS)

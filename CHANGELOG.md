@@ -1,5 +1,21 @@
 # Zmiany
 
+## 1.3.0
+- **4× większy słownik polski** (200 tys. form zamiast 50 tys.) i ponad 130 tys. słów angielskich, z poprawnymi skrótami (I'm, don't…). Pobierane języki mają teraz do 150 tys. słów.
+- **Przytrzymany Backspace usuwa całe słowa** – po kilku literach przechodzi na słowa (można wyłączyć).
+- **Symbole na literach jak w SwiftKey** – Q %, W ^, A @, S #, K (… pod przytrzymaniem i w rogu klawisza; cyfry wtedy w osobnym rzędzie albo jako drugi znak.
+- **Klawisz emoji obok ?123** (między ?123 a przecinkiem) albo połączony z ?123: dotknięcie – symbole, przytrzymanie – emoji, z ikoną dzieloną po skosie.
+- **Zmiana języka spacją** – przytrzymaj spację i przesuń w bok. Zwykłe przesunięcie spacji przesuwa kursor (także między wierszami). Przy kilku językach naraz spacja pokazuje „PL · EN”.
+- **Szybkie ustawienia od nowa**: przytrzymaj kafelek, a pojawią się wszystkie opcje (motywy, akcenty, rozmiar, wibracja, dźwięk, język…) – wybierasz, przesuwając palec. Nowe kafelki: język, klawisz emoji, symbole na literach, litery w akcencie.
+- **Dowolny kolor akcentu** (barwa, nasycenie, jasność) i opcja liter na klawiszach w kolorze akcentu.
+- **Klawiatura przylega do dołu ekranu** – pod klawiszami tylko tyle miejsca, ile wymaga system (do wyboru: automatycznie, pełny pasek, brak).
+- **Narzędzia tekstu zależne od pola**: ozdobne style tylko w zwykłych polach tekstu; wiele nowych wstawek – daty i godziny w języku pisania („20 października 2026”, dzień tygodnia, jutro, wczoraj, numer tygodnia, ISO, Unix), Twoje skróty i wpisy schowka, znaki, liczba losowa, UUID.
+- **Panel symboli** z kategoriami: interpunkcja, matematyka, strzałki, waluty, kształty, grecki, kaomoji.
+- **Pasek narzędzi** widać od razu po otwarciu klawiatury; nowe przyciski do wyboru w ustawieniach: wklej, cofnij, ponów, zaznacz wszystko, języki, rozmiar, incognito, symbole.
+- **Klawiatura zależna od kontekstu**: w polach haseł rząd cyfr, w adresach i e-mailach bez emoji, z „/” lub „@” i znakami adresu pod przytrzymaniem.
+- Usunięto moduł tłumaczenia (klawiatura nie łączy się już z usługą tłumaczeń).
+- Poprawki: przyciski paska narzędzi, szybkich ustawień i kategorii emoji reagują od pierwszego dotknięcia; ręcznie otwarty pasek narzędzi chowa się, gdy zaczynasz pisać.
+
 ## 1.2.0
 - **Płaska czarna klawiatura** – same znaki na czerni, bez pól i obramowań (także Enter i Shift; włączony Shift pokazuje kropka). Jednym dotknięciem w szybkich ustawieniach klawiatury.
 - **18 motywów**, w tym gradientowe (Ocean, Zachód, Zorza, Mgławica, Żar) i jasne (Mięta, Niebo, Brzoskwinia, Płaski jasny). Motyw dzienny i nocny przełączany z trybem ciemnym systemu, gradient we własnym motywie.

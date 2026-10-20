@@ -32,10 +32,12 @@ sealed interface DictState {
 
 /**
  * Słowniki: wbudowane (polski, angielski) i pobierane na żądanie z FrequencyWords
- * (github.com/hermitdave/FrequencyWords – 50 tys. najczęstszych słów, CC-BY-SA 4.0).
+ * (github.com/hermitdave/FrequencyWords, CC-BY-SA 4.0). Z pełnej listy bierzemy [DOWNLOAD_WORDS]
+ * najczęstszych słów – pobieranie kończy się, gdy jest ich dość (plik jest posortowany).
  */
 object Dictionaries {
-    private const val SOURCE = "https://raw.githubusercontent.com/hermitdave/FrequencyWords/master/content/2018/%s/%s_50k.txt"
+    private const val SOURCE = "https://raw.githubusercontent.com/hermitdave/FrequencyWords/master/content/2018/%s/%s_full.txt"
+    private const val DOWNLOAD_WORDS = 150_000
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private val loaded = ConcurrentHashMap<String, WordList>()
     private val locks = ConcurrentHashMap<String, Mutex>()
@@ -121,7 +123,8 @@ object Dictionaries {
                 }
                 try {
                     if (conn.responseCode != 200) error("HTTP ${conn.responseCode}")
-                    val total = conn.contentLengthLong.takeIf { it > 0 } ?: 700_000L
+                    // Przybliżony rozmiar potrzebnej części listy (do paska postępu).
+                    val total = 2_400_000L
                     val tmp = File(file(code).parentFile, "$code.part")
                     var read = 0L
                     var kept = 0
@@ -129,6 +132,8 @@ object Dictionaries {
                         conn.inputStream.bufferedReader().useLines { lines ->
                             for (line in lines) {
                                 ensureActive()
+                                if (kept >= DOWNLOAD_WORDS) break
+
                                 read += line.length + 1
                                 if (kept % 500 == 0) setState(code, DictState.Downloading((read.toFloat() / total).coerceIn(0f, 0.99f)))
                                 val sp = line.lastIndexOf(' ').takeIf { it > 0 } ?: continue

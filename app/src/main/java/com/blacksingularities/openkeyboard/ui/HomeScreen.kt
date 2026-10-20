@@ -1,5 +1,8 @@
 package com.blacksingularities.openkeyboard.ui
 
+import androidx.compose.material.icons.rounded.Functions
+import com.blacksingularities.openkeyboard.data.EmojiKey
+import com.blacksingularities.openkeyboard.data.NavSpace
 import android.Manifest
 import android.content.pm.PackageManager
 import androidx.compose.animation.AnimatedVisibility
@@ -306,6 +309,7 @@ private fun ColumnScope.SettingsContent(vm: AppViewModel) {
             Tile(Icons.Rounded.Language, tr("Klawisz języka"), tr("Przycisk globusa obok spacji (gdy jest kilka języków)"), s.languageKey) { v -> set { it.copy(languageKey = v) } },
             Tile(Icons.Rounded.SpaceBar, tr("Język na spacji"), tr("Nazwa bieżącego języka na klawiszu spacji"), s.showSpaceLanguage) { v -> set { it.copy(showSpaceLanguage = v) } },
             Tile(Icons.Rounded.Psychology, tr("Wykrywaj język"), tr("Klawiatura rozpoznaje, w jakim języku właśnie piszesz, i jego słowom daje pierwszeństwo"), s.autoLanguage) { v -> set { it.copy(autoLanguage = v) } },
+            Tile(Icons.Rounded.SwapHoriz, tr("Spacja zmienia język"), tr("Przytrzymaj spację i przesuń w bok – następny lub poprzedni język. Zwykłe przesunięcie spacji przesuwa kursor"), s.spaceSlideLanguage) { v -> set { it.copy(spaceSlideLanguage = v) } },
         ),
     )
 
@@ -383,7 +387,8 @@ private fun ColumnScope.SettingsContent(vm: AppViewModel) {
     TileGrid(
         listOf(
             Tile(Icons.Rounded.FormatSize, tr("Podgląd znaku"), tr("Powiększony znak nad naciśniętym klawiszem"), s.keyPreview) { v -> set { it.copy(keyPreview = v) } },
-            Tile(Icons.Rounded.Abc, tr("Znaki w rogu"), tr("Małe cyfry i polskie znaki w rogu klawiszy (dostępne po przytrzymaniu)"), s.keyHints) { v -> set { it.copy(keyHints = v) } },
+            Tile(Icons.Rounded.Abc, tr("Znaki w rogu"), tr("Małe cyfry, symbole i polskie znaki w rogu klawiszy (dostępne po przytrzymaniu)"), s.keyHints) { v -> set { it.copy(keyHints = v) } },
+            Tile(Icons.Rounded.Palette, tr("Litery w akcencie"), tr("Znaki na klawiszach liter w kolorze akcentu (dowolny kolor ustawisz w motywach)"), s.accentLabels) { v -> set { it.copy(accentLabels = v) } },
             Tile(Icons.Rounded.FormatSize, tr("Pogrubione"), tr("Pogrubione litery na klawiszach"), s.boldLabels) { v -> set { it.copy(boldLabels = v) } },
         ),
     )
@@ -405,7 +410,7 @@ private fun ColumnScope.SettingsContent(vm: AppViewModel) {
             Tile(Icons.Rounded.Dialpad, tr("Rząd cyfr"), tr("Stały rząd cyfr nad literami"), s.numberRow) { v -> set { it.copy(numberRow = v) } },
             Tile(Icons.Rounded.OpenWith, tr("Rząd strzałek"), tr("Strzałki ← ↑ ↓ → pod klawiszami do precyzyjnego przesuwania kursora"), s.arrowRow) { v -> set { it.copy(arrowRow = v) } },
             Tile(Icons.Rounded.Abc, tr("Przecinek"), tr("Klawisz przecinka obok spacji"), s.commaKey) { v -> set { it.copy(commaKey = v) } },
-            Tile(Icons.Rounded.EmojiEmotions, tr("Klawisz emoji"), tr("Przycisk emoji obok spacji (emoji są też pod przytrzymaniem Enter)"), s.emojiKey) { v -> set { it.copy(emojiKey = v) } },
+            Tile(Icons.Rounded.Functions, tr("Symbole na literach"), tr("Jak w SwiftKey: przytrzymaj Q – %, A – @, S – #, K – ( … Symbol widać w rogu klawisza"), s.symbolKeys) { v -> set { it.copy(symbolKeys = v) } },
             Tile(Icons.Rounded.PictureInPicture, tr("Pływająca"), tr("Klawiatura jako przesuwana nakładka nad aplikacją"), s.floating) { v -> set { it.copy(floating = v) } },
         ),
     )
@@ -418,6 +423,44 @@ private fun ColumnScope.SettingsContent(vm: AppViewModel) {
             { when (it) { OneHanded.OFF -> tr("Wyłączony"); OneHanded.LEFT -> tr("Do lewej"); OneHanded.RIGHT -> tr("Do prawej") } },
             short = { when (it) { OneHanded.OFF -> tr("Wył."); OneHanded.LEFT -> "L"; OneHanded.RIGHT -> "P" } },
         ) { v -> set { it.copy(oneHanded = v) } }
+        CompactChoice(
+            Icons.Rounded.EmojiEmotions,
+            tr("Klawisz emoji"),
+            EmojiKey.entries,
+            s.emojiKeyMode,
+            {
+                when (it) {
+                    EmojiKey.OFF -> tr("Brak – emoji z paska narzędzi albo przytrzymania Enter")
+                    EmojiKey.SEPARATE -> tr("Osobny – między ?123 a przecinkiem")
+                    EmojiKey.COMBINED -> tr("Połączony z ?123 – dotknij: symbole, przytrzymaj: emoji")
+                }
+            },
+            short = { when (it) { EmojiKey.OFF -> tr("Brak"); EmojiKey.SEPARATE -> tr("Osobny"); EmojiKey.COMBINED -> "?123" } },
+        ) { v -> set { it.copy(emojiKeyMode = v) } }
+        if (s.symbolKeys) {
+            CompactChoice(
+                Icons.Rounded.Dialpad,
+                tr("Cyfry przy symbolach"),
+                listOf(false, true),
+                s.numberRow,
+                { if (it) tr("W osobnym rzędzie nad literami") else tr("Jako drugi znak – w lewym rogu i pod przytrzymaniem") },
+                short = { if (it) tr("Rząd") else tr("Drugi znak") },
+            ) { v -> set { it.copy(numberRow = v) } }
+        }
+        CompactChoice(
+            Icons.Rounded.KeyboardHide,
+            tr("Miejsce pod klawiaturą"),
+            NavSpace.entries,
+            s.navSpace,
+            {
+                when (it) {
+                    NavSpace.AUTO -> tr("Automatycznie – klawiatura przylega do paska systemu")
+                    NavSpace.SYSTEM -> tr("Pełny pasek nawigacji (jeśli przyciski systemu nachodzą na klawisze)")
+                    NavSpace.NONE -> tr("Brak – klawisze do samej krawędzi ekranu")
+                }
+            },
+            short = { when (it) { NavSpace.AUTO -> "Auto"; NavSpace.SYSTEM -> tr("Pełne"); NavSpace.NONE -> tr("Brak") } },
+        ) { v -> set { it.copy(navSpace = v) } }
         SliderRow(Icons.Rounded.Height, tr("Wysokość klawiszy"), s.keyHeight, 70..140, 5, { "$it%" }) { v -> set { it.copy(keyHeight = v) } }
         SliderRow(Icons.Rounded.SwapHoriz, tr("Szerokość w trybie jednej ręki"), s.oneHandedWidth, 60..95, 1, { "$it%" }) { v -> set { it.copy(oneHandedWidth = v) } }
         SliderRow(Icons.Rounded.PictureInPicture, tr("Szerokość klawiatury pływającej"), s.floatingScale, 55..100, 1, { "$it%" }) { v -> set { it.copy(floatingScale = v) } }
@@ -431,6 +474,8 @@ private fun ColumnScope.SettingsContent(vm: AppViewModel) {
             Tile(Icons.Rounded.Vibration, tr("Wibracja"), tr("Delikatna wibracja przy każdym klawiszu"), s.haptics) { v -> set { it.copy(haptics = v) } },
             Tile(Icons.Rounded.VolumeUp, tr("Dźwięk"), tr("Dźwięk przy naciśnięciu klawisza – rodzaj wybierzesz niżej"), s.sound) { v -> set { it.copy(sound = v) } },
             Tile(Icons.AutoMirrored.Rounded.Backspace, tr("Usuwanie gestem"), tr("Przesuń palec w lewo z Backspace, aby zaznaczyć i usunąć całe słowa"), s.deleteSwipe) { v -> set { it.copy(deleteSwipe = v) } },
+            Tile(Icons.AutoMirrored.Rounded.Backspace, tr("Backspace usuwa słowa"), tr("Przytrzymany Backspace po chwili kasuje całe słowa zamiast pojedynczych liter"), s.deleteWordsOnHold) { v -> set { it.copy(deleteWordsOnHold = v) } },
+
         ),
     )
     Group(null) {
@@ -509,7 +554,7 @@ private fun ColumnScope.SettingsContent(vm: AppViewModel) {
     )
     Group(null) {
         UpdateRow(vm)
-        ActionRow(Icons.AutoMirrored.Rounded.KeyboardReturn, tr("O aplikacji i źródłach danych"), tr("Licencje słowników, emoji i tłumacza")) { vm.sheet = Sheet.ABOUT }
+        ActionRow(Icons.AutoMirrored.Rounded.KeyboardReturn, tr("O aplikacji i źródłach danych"), tr("Licencje słowników i emoji")) { vm.sheet = Sheet.ABOUT }
     }
     About()
 

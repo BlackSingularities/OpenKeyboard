@@ -22,7 +22,16 @@ enum class OneHanded { OFF, LEFT, RIGHT }
 enum class Autocorrect { OFF, GENTLE, NORMAL, AGGRESSIVE }
 
 /** Przyciski paska narzędzi (gdy nie ma podpowiedzi). */
-enum class ToolbarItem { CLIPBOARD, EMOJI, EDIT, TEXT_TOOLS, VOICE, TRANSLATE, ONE_HANDED, FLOATING, NUMPAD, SETTINGS }
+enum class ToolbarItem {
+    CLIPBOARD, EMOJI, EDIT, TEXT_TOOLS, VOICE, ONE_HANDED, FLOATING, NUMPAD, SETTINGS,
+    PASTE, UNDO, REDO, SELECT_ALL, LANGUAGES, RESIZE, INCOGNITO, SYMBOLS,
+}
+
+/** Klawisz emoji: brak, osobny (między ?123 a przecinkiem) albo połączony z ?123 (przytrzymanie = emoji). */
+enum class EmojiKey { OFF, SEPARATE, COMBINED }
+
+/** Miejsce zarezerwowane pod klawiaturą na pasek systemu. */
+enum class NavSpace { AUTO, SYSTEM, NONE }
 
 /** Czynność przypisana do gestu. */
 enum class GestureAction { NONE, CURSOR, LANGUAGE, HIDE, DELETE_WORD, SHIFT, EMOJI, CLIPBOARD, VOICE, TEXT_TOOLS, LANGUAGES, IME_PICKER, NUMPAD, UNDO }
@@ -53,7 +62,10 @@ data class KeyboardSettings(
     val oneHanded: OneHanded = OneHanded.OFF,
     val oneHandedWidth: Int = 80,
     val commaKey: Boolean = true,
-    val emojiKey: Boolean = false,
+    val emojiKeyMode: EmojiKey = EmojiKey.SEPARATE,
+    /** Symbole przypisane do liter jak w SwiftKey (q → %, a → @…) – pod przytrzymaniem i w rogu. */
+    val symbolKeys: Boolean = false,
+    val navSpace: NavSpace = NavSpace.AUTO,
     val languageKey: Boolean = true,
     val longPressMs: Int = 300,
     val floating: Boolean = false,
@@ -91,6 +103,10 @@ data class KeyboardSettings(
     // Wygląd
     val theme: String = "black",
     val accent: Int = 0,
+    /** Dowolny kolor akcentu (ARGB); 0 – kolor z palety [accent]. */
+    val accentColor: Long = 0,
+    /** Litery na klawiszach w kolorze akcentu. */
+    val accentLabels: Boolean = false,
     val keyStyle: KeyStyle = KeyStyle.FILLED,
     val keyRadius: Int = 9,
     val keyGap: Int = 5,
@@ -122,6 +138,10 @@ data class KeyboardSettings(
     val soundVolume: Int = 40,
     val keySound: KeySound = KeySound.SYSTEM,
     val deleteSwipe: Boolean = true,
+    /** Przytrzymany Backspace po chwili usuwa całe słowa. */
+    val deleteWordsOnHold: Boolean = true,
+    /** Przytrzymaj spację i przesuń w bok – zmiana języka. */
+    val spaceSlideLanguage: Boolean = true,
     // Gesty – każdemu można przypisać czynność.
     val spaceSwipe: GestureAction = GestureAction.CURSOR,
     val spaceSwipeUp: GestureAction = GestureAction.TEXT_TOOLS,
@@ -132,12 +152,11 @@ data class KeyboardSettings(
 
     // Narzędzia
     val toolbar: List<ToolbarItem> = listOf(
-        ToolbarItem.CLIPBOARD, ToolbarItem.EMOJI, ToolbarItem.EDIT, ToolbarItem.TEXT_TOOLS, ToolbarItem.VOICE,
-        ToolbarItem.TRANSLATE, ToolbarItem.ONE_HANDED, ToolbarItem.FLOATING, ToolbarItem.SETTINGS,
+        ToolbarItem.CLIPBOARD, ToolbarItem.EDIT, ToolbarItem.TEXT_TOOLS, ToolbarItem.VOICE, ToolbarItem.PASTE,
+        ToolbarItem.UNDO, ToolbarItem.ONE_HANDED, ToolbarItem.FLOATING, ToolbarItem.SETTINGS,
     ),
     val clipboardHistory: Boolean = true,
     val clipboardSize: Int = 60,
-    val translateTarget: String = "en",
     val voiceAutoPunct: Boolean = true,
 
     // Ogólne
@@ -159,7 +178,7 @@ object Prefs {
     fun init(context: Context) {
         appContext = context.applicationContext
         val raw = prefs().getString(KEY, null)
-        state.value = raw?.let { runCatching { json.decodeFromString(KeyboardSettings.serializer(), it) }.getOrNull() } ?: KeyboardSettings()
+        state.value = raw?.let { runCatching { decode(it) }.getOrNull() } ?: KeyboardSettings()
     }
 
     private fun prefs() = appContext.getSharedPreferences(FILE, Context.MODE_PRIVATE)
@@ -173,8 +192,14 @@ object Prefs {
 
     fun exportJson(): String = json.encodeToString(KeyboardSettings.serializer(), state.value)
 
+    /** Usunięte wartości (np. przycisk tłumacza z 1.2) nie mogą unieważnić całych ustawień. */
+    internal fun decode(raw: String): KeyboardSettings {
+        val clean = raw.replace(Regex(""",?\s*"TRANSLATE"\s*"""), "").replace("[,", "[")
+        return json.decodeFromString(KeyboardSettings.serializer(), clean)
+    }
+
     fun importJson(raw: String) {
-        val s = json.decodeFromString(KeyboardSettings.serializer(), raw)
+        val s = decode(raw)
         update { s }
     }
 
