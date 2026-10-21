@@ -29,6 +29,8 @@ import com.blacksingularities.openkeyboard.features.Calculator
 import com.blacksingularities.openkeyboard.features.ClipboardHistory
 import com.blacksingularities.openkeyboard.features.FancyStyle
 import com.blacksingularities.openkeyboard.features.TextTools
+import com.blacksingularities.openkeyboard.features.SmartCase
+import com.blacksingularities.openkeyboard.features.UnitConverter
 import com.blacksingularities.openkeyboard.data.GestureAction
 import com.blacksingularities.openkeyboard.dict.Glide
 import com.blacksingularities.openkeyboard.dict.Pt
@@ -237,6 +239,42 @@ class KeyboardController(val service: OpenKeyboardService) {
 
     fun onShift() {
         val now = SystemClock.uptimeMillis()
+        // Shift w trakcie słowa: abc → Abc → ABC → abc (zamiast przełączać następną literę).
+        if (settings.shiftCycleWord && internal == null && mode == KeyboardMode.ALPHA && composing.isNotEmpty() && fancy == null) {
+            cycleComposingCase()
+            lastShiftTap = 0L
+            return
+        }
+        // Słowo tuż przed kursorem (pole bez podpowiedzi, słowo po geście) – też zmienia wielkość.
+        if (settings.shiftCycleWord && internal == null && mode == KeyboardMode.ALPHA && composing.isEmpty() && fancy == null) {
+            val ic = ic
+            val before = ic?.getTextBeforeCursor(48, 0)?.toString().orEmpty()
+            val word = Regex("""[\p{L}'’-]+$""").find(before)?.value
+            if (ic != null && word != null && word.any { it.isLetter() } && ic.getSelectedText(0).isNullOrEmpty()) {
+                val next = TextTools.cycleWordCase(word)
+                ic.beginBatchEdit()
+                ic.deleteSurroundingText(word.length, 0)
+                ic.commitText(next, 1)
+                ic.endBatchEdit()
+                capsWord = next.length > 1 && next == next.uppercase()
+                shift = ShiftState.OFF
+                lastShiftTap = 0L
+                feedback.tick()
+                selfEdit()
+                refreshSuggestions()
+                return
+            }
+        }
+        // Shift przy zaznaczeniu: zmienia wielkość liter zaznaczonego tekstu.
+        if (settings.shiftCycleWord && internal == null && composing.isEmpty()) {
+            val sel = ic?.getSelectedText(0)?.toString()
+            if (!sel.isNullOrEmpty() && sel.any { it.isLetter() }) {
+                transformText(TextTools::cycleCase)
+                lastShiftTap = 0L
+                return
+            }
+        }
+        capsWord = false
         shift = when {
             shift == ShiftState.LOCKED -> ShiftState.OFF
             now - lastShiftTap < 320 -> ShiftState.LOCKED
@@ -247,7 +285,40 @@ class KeyboardController(val service: OpenKeyboardService) {
     }
 
     fun lockShift() {
+        capsWord = false
         shift = ShiftState.LOCKED
+    }
+
+    /** Wielkie litery do końca bieżącego słowa (po drugim Shift w trakcie pisania). */
+    var capsWord by mutableStateOf(false)
+        private set
+
+    /** Shift przytrzymany jednym palcem, gdy drugi pisze – wielkie litery tylko do puszczenia. */
+    var shiftChord by mutableStateOf(false)
+        private set
+
+    fun startShiftChord() {
+        shiftChord = true
+    }
+
+    fun endShiftChord() {
+        shiftChord = false
+    }
+
+    /** Kolejny Shift w trakcie słowa: abc → Abc → ABC → abc. */
+    private fun cycleComposingCase() {
+        val ic = ic ?: return
+        val word = composing.toString()
+        val next = TextTools.cycleWordCase(word)
+        composing.clear()
+        composing.append(next)
+        ic.setComposingText(composing, 1)
+        keepTyped = next != next.lowercase()
+        capsWord = next.length > 1 && next == next.uppercase() && next != next.lowercase()
+        shift = ShiftState.OFF
+        feedback.tick()
+        selfEdit()
+        refreshSuggestions()
     }
 
     private fun updateAutoShift() {
@@ -261,7 +332,7 @@ class KeyboardController(val service: OpenKeyboardService) {
         shift = if (caps != 0) ShiftState.ONESHOT else ShiftState.OFF
     }
 
-    val upper: Boolean get() = shift != ShiftState.OFF
+    val upper: Boolean get() = shift != ShiftState.OFF || capsWord || shiftChord
 
     // ───────────────────────── klawisze ─────────────────────────
 
@@ -345,6 +416,15 @@ class KeyboardController(val service: OpenKeyboardService) {
                 if (before == " ") ic.deleteSurroundingText(1, 0)
                 ic.commitText(text + if (ch in ".,!?:;") " " else "", 1)
                 autoSpace = ch in ".,!?:;"
+            } else if (settings.autoPair && text.length == 1 && ch in PAIRS && fieldKind == FieldKind.TEXT) {
+                ic.commitText(text + PAIRS.getValue(ch), 1)
+                selfEdit()
+                moveCursor(-1)
+                autoSpace = false
+            } else if (settings.autoPair && text.length == 1 && ch in PAIRS.values && ic.getTextAfterCursor(1, 0)?.toString() == text) {
+                // Zamykający znak już stoi za kursorem – tylko go przeskocz.
+                moveCursor(1)
+                autoSpace = false
             } else {
                 ic.commitText(text, 1)
                 autoSpace = false
@@ -366,7 +446,10 @@ class KeyboardController(val service: OpenKeyboardService) {
             }
         }
         if (shift == ShiftState.ONESHOT) shift = ShiftState.OFF
-        if (!wordChar) updateAutoShift()
+        if (!wordChar) {
+            capsWord = false
+            updateAutoShift()
+        }
         // Po symbolu typu apostrof w trybie symboli – powrót do liter jak w Gboard.
         if (mode == KeyboardMode.SYMBOLS && ch == '\'' ) switchMode(KeyboardMode.ALPHA)
         refreshSuggestions()
@@ -558,7 +641,7 @@ class KeyboardController(val service: OpenKeyboardService) {
         val prev = previousWord()
         var final = typed
         if (autocorrect && !keepTyped && settings.autocorrect != Autocorrect.OFF && wordSuggestions) {
-            val s = if (suggestionsFor == typed) suggestions else computeSuggestions(typed)
+            val s = if (suggestionsFor == typed) suggestions else computeSuggestions(typed, composingAtSentenceStart())
             val auto = s.autoCorrect
             if (auto != null && auto.text != typed) {
                 final = auto.text
@@ -570,19 +653,52 @@ class KeyboardController(val service: OpenKeyboardService) {
         } else {
             lastCorrection = null
         }
+        // Wielkość liter: początek zdania, „HEllo”, angielskie dni i miesiące.
+        if (autocorrect && settings.autoCapitalize && !capsWord && wordSuggestions && final == typed && !keepTyped) {
+            val fixed = SmartCase.fix(final, composingAtSentenceStart(), suggestLangs)
+            if (fixed != final) {
+                final = fixed
+                lastCorrection = Triple(typed, final, separator)
+            }
+        }
         // Skrót tekstowy rozwijany spacją (np. „pzdr ” → „Pozdrawiam ”).
         if (settings.shortcuts && separator == " ") {
             UserModel.shortcutFor(typed)?.let { final = it.expansion; lastCorrection = Triple(typed, final, separator) }
         }
-        ic.commitText(final + separator, 1)
+        capsWord = false
+        val expanded = settings.shortcuts && separator == " " && final.contains('{') && UserModel.shortcutFor(typed)?.expansion == final
+        if (expanded) commitExpanded(final, separator) else ic.commitText(final + separator, 1)
         composing.clear()
         keepTyped = false
         learn(final, prev)
         selfEdit()
     }
 
+    /** Rozwinięcie skrótu ze zmiennymi: {data}, {godzina}, {dzień}, {schowek}, {kursor}. */
+    private fun commitExpanded(template: String, separator: String) {
+        val ic = ic ?: return
+        val clip = ClipboardHistory.items.value.firstOrNull()?.text.orEmpty()
+        val (text, cursorBack) = TextTools.expandTemplate(template, activeLanguage, clip)
+        if (cursorBack > 0) {
+            ic.commitText(text, 1)
+            selfEdit()
+            moveCursor(-cursorBack)
+        } else {
+            ic.commitText(text + separator, 1)
+        }
+    }
+
     private fun learn(word: String, prev: String?) {
         if (incognito || !settings.learnWords) return
+        if (' ' in word) {
+            // Poprawka na dwa słowa – każde osobno, drugie w parze z pierwszym.
+            var p = prev
+            for (w in word.split(' ').filter { it.isNotEmpty() }) {
+                learn(w, p)
+                p = w
+            }
+            return
+        }
         val atSentenceStart = prev == null
         val stored = if (atSentenceStart && word.length > 1 && word[0].isUpperCase() && word.drop(1).all { it.isLowerCase() }) {
             // Wielka litera tylko z początku zdania – zapamiętaj małą, chyba że słownik zna formę wielką.
@@ -614,7 +730,13 @@ class KeyboardController(val service: OpenKeyboardService) {
                 val prev = previousWord()
                 val after = ic.getTextAfterCursor(1, 0)?.toString().orEmpty()
                 val sep = if (after.startsWith(" ")) "" else " "
-                ic.commitText(s.text + sep, 1)
+                if (s.kind == SuggestionKind.SHORTCUT && s.text.contains('{')) {
+                    composing.clear()
+                    ic.commitText("", 1)
+                    commitExpanded(s.text, sep)
+                } else {
+                    ic.commitText(s.text + sep, 1)
+                }
                 if (after.startsWith(" ")) {
                     // Spacja już jest – przeskocz ją.
                     ic.getExtractedText(android.view.inputmethod.ExtractedTextRequest(), 0)?.let {
@@ -646,6 +768,24 @@ class KeyboardController(val service: OpenKeyboardService) {
                 if (composing.isNotEmpty()) commitComposing(autocorrect = false)
                 val before = ic.getTextBeforeCursor(1, 0)?.toString().orEmpty()
                 ic.commitText(if (before == "=") s.text else " = ${s.text}", 1)
+            }
+            SuggestionKind.UNDO -> {
+                // Cofnięcie autokorekty z paska – jak Backspace, ale bez kasowania.
+                val c = lastCorrection
+                if (c != null) {
+                    val n = c.second.length + c.third.length
+                    if (ic.getTextBeforeCursor(n, 0)?.toString() == c.second + c.third) {
+                        ic.deleteSurroundingText(n, 0)
+                        ic.commitText(c.first + c.third, 1)
+                        if (settings.learnFromUndo && !incognito) UserModel.rejectCorrection(c.first, c.second)
+                    }
+                }
+                lastCorrection = null
+            }
+            SuggestionKind.CONVERT -> {
+                if (composing.isNotEmpty()) commitComposing(autocorrect = false)
+                val before = ic.getTextBeforeCursor(1, 0)?.toString().orEmpty()
+                ic.commitText((if (before.isEmpty() || before == " ") "" else " ") + "(${s.text})", 1)
             }
             SuggestionKind.CLIPBOARD -> {
                 if (composing.isNotEmpty()) commitComposing(autocorrect = false, separator = " ")
@@ -684,8 +824,26 @@ class KeyboardController(val service: OpenKeyboardService) {
     private val primaryLanguage: String
         get() = detectedLanguage?.takeIf { settings.autoLanguage && settings.multilingual && it in settings.languages } ?: settings.activeLanguage
 
-    private fun computeSuggestions(typed: String): Suggestions =
-        Suggest.suggest(typed, previousWordSafe, suggestLangs, primaryLanguage, settings.autocorrect, proximity, settings.suggestionCount.coerceIn(3, 5))
+    private fun computeSuggestions(typed: String, sentenceStart: Boolean = false): Suggestions {
+        val s = Suggest.suggest(typed, previousWordSafe, suggestLangs, primaryLanguage, settings.autocorrect, proximity)
+        if (!settings.autoCapitalize || capsWord) return s
+        // Początek zdania: podpowiedzi i autokorekta z wielkiej litery, nawet gdy pisano małą.
+        fun fix(x: Suggestion): Suggestion {
+            if (x.kind != SuggestionKind.WORD) return x
+            val t = SmartCase.fix(x.text, sentenceStart, suggestLangs)
+            return if (t == x.text) x else x.copy(text = t, display = t)
+        }
+        val auto = s.autoCorrect?.let(::fix)
+        return s.copy(items = s.items.map(::fix).distinctBy { it.text }, autoCorrect = auto)
+    }
+
+    /** Wpisywane słowo zaczyna zdanie (pole tekstowe z autokapitalizacją). */
+    private fun composingAtSentenceStart(): Boolean {
+        if (!settings.autoCapitalize || fieldKind != FieldKind.TEXT) return false
+        val before = ic?.getTextBeforeCursor(80, 0)?.toString() ?: return false
+        val text = if (composing.isNotEmpty() && before.endsWith(composing)) before.dropLast(composing.length) else before
+        return SmartCase.isSentenceStart(text)
+    }
 
     /** Który z włączonych języków zna najwięcej z ostatnich słów. */
     private fun detectLanguage(word: String) {
@@ -720,7 +878,7 @@ class KeyboardController(val service: OpenKeyboardService) {
         val lock = shift == ShiftState.LOCKED
         scope.launch {
             val words = withContext(Dispatchers.Default) {
-                Glide.decode(path, centers, keyW, suggestLangs, primaryLanguage, prev, settings.suggestionCount.coerceIn(3, 5))
+                Glide.decode(path, centers, keyW, suggestLangs, primaryLanguage, prev, 8)
             }
             if (words.isEmpty()) {
                 showToast(tr("Nie rozpoznano słowa"))
@@ -815,6 +973,7 @@ class KeyboardController(val service: OpenKeyboardService) {
         if (internal != null) return
         val typed = composing.toString()
         previousWordSafe = previousWord()
+        val sentenceStart = typed.isNotEmpty() && composingAtSentenceStart()
         val prevForPredict = previousWordSafe
         val before = ic?.getTextBeforeCursor(64, 0)?.toString().orEmpty()
         extras = buildExtras(typed, before)
@@ -824,12 +983,12 @@ class KeyboardController(val service: OpenKeyboardService) {
             return
         }
         if (typed.isEmpty()) {
-            suggestions = if (settings.nextWord && !incognito) Suggest.predict(prevForPredict, shift != ShiftState.OFF) else Suggestions.Empty
+            suggestions = if (settings.nextWord && !incognito) Suggest.predict(prevForPredict, shift != ShiftState.OFF, 8) else Suggestions.Empty
             suggestionsFor = ""
             return
         }
         suggestJob = scope.launch {
-            val s = withContext(Dispatchers.Default) { computeSuggestions(typed) }
+            val s = withContext(Dispatchers.Default) { computeSuggestions(typed, sentenceStart) }
             if (composing.toString() == typed) {
                 suggestions = s
                 suggestionsFor = typed
@@ -839,6 +998,13 @@ class KeyboardController(val service: OpenKeyboardService) {
 
     private fun buildExtras(typed: String, before: String): List<Suggestion> {
         val out = mutableListOf<Suggestion>()
+        val corr = lastCorrection
+        if (typed.isEmpty() && corr != null && !corr.first.equals(corr.second, ignoreCase = true) && UserModel.shortcutFor(corr.first) == null) {
+            out += Suggestion(corr.first, SuggestionKind.UNDO, "↶ " + corr.first)
+        }
+        if (settings.unitConvert && typed.isEmpty()) {
+            UnitConverter.find(before, activeLanguage)?.let { out += Suggestion(it, SuggestionKind.CONVERT, "≈ $it") }
+        }
         if (settings.shortcuts && typed.isNotEmpty()) {
             UserModel.shortcutFor(typed)?.let { out += Suggestion(it.expansion, SuggestionKind.SHORTCUT, "↳ " + it.expansion.take(24)) }
         }
@@ -1117,6 +1283,9 @@ class KeyboardController(val service: OpenKeyboardService) {
         Dictionaries.ensureLoaded(settings.languages)
     }
 }
+
+/** Nawiasy i cudzysłowy domykane automatycznie (ustawienie „Domykaj nawiasy”). */
+private val PAIRS = mapOf('(' to ')', '[' to ']', '{' to '}', '„' to '”', '“' to '”', '«' to '»')
 
 private fun graphemeLengthBefore(text: String): Int {
     if (text.isEmpty()) return 0

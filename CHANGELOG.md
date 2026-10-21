@@ -5,6 +5,22 @@
 
 # Zmiany
 
+## 1.4.0
+- **Shift w trakcie słowa**: pierwsze naciśnięcie robi wielką pierwszą literę („kot” → „Kot”), drugie – całe słowo wielkimi („KOT”, dalsze litery też wielkie do końca słowa), trzecie wraca do małych. Shift przy zaznaczonym tekście zmienia jego wielkość liter.
+- **Shift trzymany jak na komputerze**: przytrzymaj Shift jednym palcem i pisz drugim – wielkie litery tylko do puszczenia.
+- **Wielka litera na początku zdania także w podpowiedziach i autokorekcie** (z rozpoznawaniem skrótów „np.”, „itd.”, „m.in.”), poprawianie „HEllo” → „Hello”, angielskie dni, miesiące i „I'm”.
+- **Przytrzymany Backspace od razu usuwa całe słowa** (bez przeciągania).
+- **Dwa słowa z jednego**: pominięta spacja („jakdzien” → „jak dzień”) albo litera z dolnego rzędu trafiona zamiast spacji („dzieńndobry” → „dzień dobry”) – w podpowiedziach i autokorekcie.
+- **Pasek podpowiedzi bez limitu**: tyle słów, ile pasuje, przewijane palcem, większe i nigdy nie ucinane „…”; najlepsze pierwsze.
+- **Shift działa też na słowie tuż przed kursorem** (np. w polach bez podpowiedzi i po pisaniu gestem).
+- **Cofnięcie autokorekty z paska** – po poprawce w pasku pojawia się „↶ wpisane słowo”.
+- **Znak pociągnięciem** – pociągnij palcem w górę po klawiszu, aby wstawić znak z jego rogu.
+- **Przelicznik jednostek w pasku**: km/mi, m/ft, cm/in, kg/lb, g/oz, l/gal, °C/°F, km/h/mph, kW/KM.
+- **Zmienne w skrótach tekstowych**: {data}, {godzina}, {dzień}, {schowek}, {kursor}.
+- **Domykanie nawiasów i cudzysłowów** (opcja).
+- **Dyktowanie w ustawieniach naprawione**: stan mikrofonu odświeża się po udzieleniu zgody, po trwałej odmowie aplikacja otwiera ustawienia systemu, „Zezwól w aplikacji” z klawiatury pokazuje prawdziwe okno zgody. Nowa grupa „Dyktowanie” (stan, ustawienia rozpoznawania mowy), pełny kod języka dla usługi mowy (pl-PL) i czytelne komunikaty błędów.
+- Nowe przekształcenia tekstu: bez ogonków, od tyłu, do góry nogami, porządek w odstępach.
+
 ## 1.3.0
 - **4× większy słownik polski** (200 tys. form zamiast 50 tys.) i ponad 130 tys. słów angielskich, z poprawnymi skrótami (I'm, don't…). Pobierane języki mają teraz do 150 tys. słów.
 - **Przytrzymany Backspace usuwa całe słowa** – po kilku literach przechodzi na słowa (można wyłączyć).

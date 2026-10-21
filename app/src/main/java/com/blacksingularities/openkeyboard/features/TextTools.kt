@@ -27,6 +27,46 @@ enum class FancyStyle(val label: String) {
     UNDERLINE("u̲n̲d̲e̲r̲"),
 }
 
+/**
+ * Inteligentna wielkość liter przy zatwierdzaniu słowa: wielka litera na początku zdania (także
+ * w podpowiedziach), „HEllo” → „Hello” (przytrzymany Shift), angielskie dni, miesiące i „I'm”.
+ */
+object SmartCase {
+    private val english = listOf(
+        "monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday",
+        "january", "february", "march", "april", "june", "july", "august", "september", "october", "november", "december",
+        "english", "polish", "american", "british", "european", "christmas", "easter",
+    ).associateWith { it.replaceFirstChar { c -> c.uppercaseChar() } } + mapOf(
+        "i" to "I", "i'm" to "I'm", "i’m" to "I’m", "i've" to "I've", "i'll" to "I'll", "i'd" to "I'd",
+    )
+
+    /** Słowo po poprawce wielkości liter. [sentenceStart] – słowo zaczyna zdanie. */
+    fun fix(word: String, sentenceStart: Boolean, langs: Collection<String>): String {
+        var w = word
+        // Dwie wielkie na początku, reszta małe – palec za długo na Shift.
+        if (w.length >= 3 && w[0].isUpperCase() && w[1].isUpperCase() && w.drop(2).all { !it.isLetter() || it.isLowerCase() } && w.drop(2).any { it.isLetter() }) {
+            w = w[0] + w.substring(1).lowercase()
+        }
+        if ("en" in langs) english[w]?.let { w = it }
+        if (sentenceStart && w.firstOrNull()?.isLowerCase() == true) w = w.replaceFirstChar { it.uppercaseChar() }
+        return w
+    }
+
+    /** Czy tekst przed słowem to początek zdania (puste pole, po . ! ? … albo nowej linii). */
+    fun isSentenceStart(textBefore: String): Boolean {
+        val t = textBefore.trimEnd(' ', '\t', '\u00A0')
+        if (t.isEmpty() || t.endsWith("\n")) return true
+        val trimmed = t.trimEnd('"', '”', '»', ')', '\'')
+        val last = trimmed.lastOrNull() ?: return true
+        if (last !in ".!?…") return false
+        // „np.”, „itd.”, „e.g.” – skróty nie kończą zdania; tak samo liczby („3.”).
+        val lastWord = Regex("""([\p{L}.]+)\.$""").find(trimmed)?.groupValues?.get(1)?.lowercase()
+        return lastWord == null || lastWord !in ABBREVIATIONS
+    }
+
+    private val ABBREVIATIONS = setOf("np", "itd", "itp", "tzn", "tj", "m.in", "ok", "godz", "ul", "al", "nr", "dr", "prof", "mgr", "inż", "św", "tel", "e.g", "i.e", "mr", "mrs", "ms", "vs", "etc", "st")
+}
+
 object TextTools {
     private const val SMALL = "ᴀʙᴄᴅᴇꜰɢʜɪᴊᴋʟᴍɴᴏᴘǫʀꜱᴛᴜᴠᴡxʏᴢ"
     private val doubleUpper = mapOf('C' to "ℂ", 'H' to "ℍ", 'N' to "ℕ", 'P' to "ℙ", 'Q' to "ℚ", 'R' to "ℝ", 'Z' to "ℤ")
@@ -91,7 +131,80 @@ object TextTools {
 
     fun title(text: String): String = text.lowercase().split(' ').joinToString(" ") { w -> w.replaceFirstChar { it.uppercaseChar() } }
 
-    fun invert(text: String): String = buildString { for (c in text) append(if (c.isUpperCase()) c.lowercaseChar() else c.uppercaseChar()) }
+    /** Shift w trakcie pisania słowa: abc → Abc → ABC → abc. */
+    fun cycleWordCase(word: String): String {
+        val lower = word.lowercase()
+        val cap = lower.replaceFirstChar { it.uppercaseChar() }
+        val up = word.uppercase()
+        return when {
+            word == up && word != lower -> lower
+            word == cap && word.length > 1 -> up
+            else -> cap
+        }
+    }
+
+    /** Bez znaków diakrytycznych: „Zażółć gęślą” → „Zazolc gesla”. */
+    fun stripDiacritics(text: String): String {
+        val special = mapOf('ł' to "l", 'Ł' to "L", 'ø' to "o", 'Ø' to "O", 'đ' to "d", 'Đ' to "D", 'ß' to "ss", 'æ' to "ae", 'Æ' to "AE", 'œ' to "oe")
+        val sb = StringBuilder()
+        for (c in text) sb.append(special[c] ?: c.toString())
+        return java.text.Normalizer.normalize(sb, java.text.Normalizer.Form.NFD).replace(Regex("\\p{Mn}+"), "")
+    }
+
+    /** Tekst od tyłu (z zachowaniem emoji i znaków złożonych). */
+    fun reverse(text: String): String {
+        val it = java.text.BreakIterator.getCharacterInstance()
+        it.setText(text)
+        val parts = ArrayList<String>()
+        var start = it.first()
+        var end = it.next()
+        while (end != java.text.BreakIterator.DONE) {
+            parts += text.substring(start, end)
+            start = end
+            end = it.next()
+        }
+        return parts.asReversed().joinToString("")
+    }
+
+    private const val FLIP_FROM = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789.,!?'\"()[]{}<>_&"
+    private const val FLIP_TO = "ɐqɔpǝɟƃɥᴉɾʞlɯuodbɹsʇnʌʍxʎz∀ꓭƆꓷƎℲ⅁HIſꓘ⅂WNOԀΌꓤSꓕՈΛMX⅄Z0ƖᄅƐㄣϛ9ㄥ86˙'¡¿,„)(][}{><‾⅋"
+
+    /** Do góry nogami: „hello” → „ollǝɥ”. */
+    fun upsideDown(text: String): String = buildString {
+        for (c in stripDiacritics(text).reversed()) {
+            val i = FLIP_FROM.indexOf(c)
+            append(if (i >= 0 && i < FLIP_TO.length) FLIP_TO[i] else c)
+        }
+    }
+
+    /** Porządek w odstępach: pojedyncze spacje, bez spacji przed , . ! ? i na końcach linii. */
+    fun tidySpaces(text: String): String = text
+        .replace(Regex("[ \\t\\u00A0]+"), " ")
+        .replace(Regex(" ([,.!?;:])"), "$1")
+        .lines().joinToString("\n") { it.trim() }
+
+    /**
+     * Zmienne w skrótach tekstowych: {data}/{date}, {godzina}/{time}, {dzień}/{day}, {schowek}/{clipboard},
+     * {kursor}/{cursor} – miejsce kursora po rozwinięciu. Zwraca tekst i liczbę znaków, o ile cofnąć kursor
+     * (0 – kursor na końcu).
+     */
+    fun expandTemplate(template: String, lang: String, clipboard: String, now: Date = Date()): Pair<String, Int> {
+        val loc = Locale.forLanguageTag(lang)
+        var out = template
+        fun sub(names: List<String>, value: () -> String) {
+            for (n in names) if (out.contains("{$n}", ignoreCase = true)) out = out.replace("{$n}", value(), ignoreCase = true)
+        }
+        sub(listOf("data", "date")) { SimpleDateFormat("d.MM.yyyy", loc).format(now) }
+        sub(listOf("godzina", "time")) { SimpleDateFormat("HH:mm", loc).format(now) }
+        sub(listOf("dzień", "dzien", "day")) { SimpleDateFormat("EEEE", loc).format(now) }
+        sub(listOf("schowek", "clipboard")) { clipboard }
+        val marker = Regex("\\{(kursor|cursor)\\}", RegexOption.IGNORE_CASE)
+        val m = marker.find(out) ?: return out to 0
+        val result = out.removeRange(m.range).replace(marker, "")
+        return result to (result.length - m.range.first)
+    }
+
+    fun invert(text: String): String =buildString { for (c in text) append(if (c.isUpperCase()) c.lowercaseChar() else c.uppercaseChar()) }
 
     fun date(): String = SimpleDateFormat("d.MM.yyyy", Locale.getDefault()).format(Date())
     fun time(): String = SimpleDateFormat("HH:mm", Locale.getDefault()).format(Date())

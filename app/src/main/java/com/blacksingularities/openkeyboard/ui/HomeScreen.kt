@@ -52,6 +52,7 @@ import androidx.compose.material.icons.rounded.KeyboardHide
 import androidx.compose.material.icons.rounded.Language
 import androidx.compose.material.icons.automirrored.rounded.MenuBook
 import androidx.compose.material.icons.rounded.Mic
+import androidx.compose.material.icons.rounded.MicOff
 import androidx.compose.material.icons.rounded.Notifications
 import androidx.compose.material.icons.rounded.OpenWith
 import androidx.compose.material.icons.rounded.Palette
@@ -227,12 +228,40 @@ private fun Header(vm: AppViewModel) {
     }
 }
 
+/** Dyktowanie: stan mikrofonu i usługi rozpoznawania mowy, opcje. */
+@Composable
+private fun VoiceGroup(vm: AppViewModel) {
+    val sys = LocalSystem.current
+    val s = vm.settings
+    Group(tr("Dyktowanie")) {
+        when {
+            !vm.speechAvailable -> ActionRow(
+                Icons.Rounded.MicOff,
+                tr("Brak usługi rozpoznawania mowy"),
+                tr("Zainstaluj lub włącz aplikację Google (rozpoznawanie mowy), a potem wróć tutaj"),
+            ) { sys.openUrl("market://details?id=com.google.android.googlequicksearchbox") }
+            !vm.micGranted -> ActionRow(
+                Icons.Rounded.MicOff,
+                tr("Mikrofon zablokowany"),
+                if (vm.micAsked) tr("Dotknij, aby otworzyć ustawienia aplikacji i zezwolić na mikrofon") else tr("Dotknij, aby zezwolić klawiaturze na mikrofon"),
+            ) { if (vm.micAsked) sys.openAppSettings() else sys.requestMic() }
+            else -> ActionRow(Icons.Rounded.Mic, tr("Dyktowanie gotowe"), tr("Mikrofon w pasku narzędzi klawiatury; język = bieżący język pisania")) { sys.openVoiceSettings() }
+        }
+        ActionRow(Icons.Rounded.Settings, tr("Ustawienia rozpoznawania mowy"), tr("Języki do pobrania (dyktowanie bez internetu) i usługa mowy systemu")) { sys.openVoiceSettings() }
+    }
+    TileGrid(
+        listOf(
+            Tile(Icons.Rounded.Mic, tr("Wielka litera w dyktowaniu"), tr("Dyktowany tekst na początku zdania zaczyna się wielką literą"), s.voiceAutoPunct) { v -> vm.update { it.copy(voiceAutoPunct = v) } },
+        ),
+    )
+}
+
 /** Kroki konfiguracji: włączenie klawiatury, wybór domyślnej, mikrofon, powiadomienia. */
 @Composable
 private fun SetupCard(vm: AppViewModel) {
     val sys = LocalSystem.current
     val ctx = LocalContext.current
-    val micOk = ctx.checkSelfPermission(Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED
+    val micOk = vm.micGranted
     val notifOk = android.os.Build.VERSION.SDK_INT < 33 || ctx.checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED
     val ready = vm.imeEnabled && vm.imeSelected
     Group(if (ready) tr("Klawiatura gotowa") else tr("Pierwsze kroki")) {
@@ -331,14 +360,6 @@ private fun ColumnScope.SettingsContent(vm: AppViewModel) {
             },
             short = { when (it) { Autocorrect.OFF -> tr("Wył."); Autocorrect.GENTLE -> "1"; Autocorrect.NORMAL -> "2"; Autocorrect.AGGRESSIVE -> "3" } },
         ) { v -> set { it.copy(autocorrect = v) } }
-        CompactChoice(
-            Icons.Rounded.Spellcheck,
-            tr("Liczba podpowiedzi"),
-            listOf(3, 5),
-            if (s.suggestionCount >= 5) 5 else 3,
-            { tr("{0} słowa w pasku", it) },
-            short = { it.toString() },
-        ) { v -> set { it.copy(suggestionCount = v) } }
     }
     TileGrid(
         listOf(
@@ -350,12 +371,16 @@ private fun ColumnScope.SettingsContent(vm: AppViewModel) {
             Tile(Icons.AutoMirrored.Rounded.Undo, tr("Ucz się z cofnięć"), tr("Poprawka cofnięta Backspace'em nie wraca, a wpisane słowo trafia do słownika"), s.learnFromUndo) { v -> set { it.copy(learnFromUndo = v) } },
             Tile(Icons.Rounded.FormatQuote, tr("Cudzysłowy „”"), tr("Typograficzne cudzysłowy zależne od języka zamiast prostych"), s.smartQuotes) { v -> set { it.copy(smartQuotes = v) } },
             Tile(Icons.Rounded.SpaceBar, tr("Spacja po , ! ?"), tr("Spacja dodawana automatycznie, gdy po przecinku, wykrzykniku lub pytajniku od razu piszesz dalej"), s.autoSpaceAfterPunct) { v -> set { it.copy(autoSpaceAfterPunct = v) } },
-            Tile(Icons.Rounded.KeyboardCapslock, tr("Wielka litera"), tr("Automatycznie wielka litera na początku zdania"), s.autoCapitalize) { v -> set { it.copy(autoCapitalize = v) } },
+            Tile(Icons.Rounded.KeyboardCapslock, tr("Wielka litera"), tr("Wielka litera na początku zdania – także w podpowiedziach i autokorekcie; poprawia „HEllo” na „Hello” i angielskie dni i miesiące"), s.autoCapitalize) { v -> set { it.copy(autoCapitalize = v) } },
+            Tile(Icons.Rounded.KeyboardCapslock, tr("Shift w słowie"), tr("Shift w trakcie pisania słowa: pierwsze naciśnięcie – wielka pierwsza litera, drugie – całe słowo wielkimi. Przy zaznaczeniu zmienia jego wielkość liter"), s.shiftCycleWord) { v -> set { it.copy(shiftCycleWord = v) } },
+            Tile(Icons.Rounded.Abc, tr("Znak pociągnięciem"), tr("Pociągnij palcem w górę po klawiszu, aby wstawić znak z jego rogu (cyfrę, symbol, polską literę)"), s.flickSymbols) { v -> set { it.copy(flickSymbols = v) } },
+            Tile(Icons.Rounded.Functions, tr("Domykaj nawiasy"), tr("Nawias lub cudzysłów od razu z zamknięciem, kursor w środku"), s.autoPair) { v -> set { it.copy(autoPair = v) } },
+            Tile(Icons.Rounded.Calculate, tr("Przelicz jednostki"), tr("Wynik w pasku po wpisaniu np. 5 km, 20°C, 3 kg, 60 mph"), s.unitConvert) { v -> set { it.copy(unitConvert = v) } },
             Tile(Icons.Rounded.SpaceBar, tr("Kropka 2× spacja"), tr("Dwukrotne naciśnięcie spacji wstawia kropkę i spację"), s.doubleSpacePeriod) { v -> set { it.copy(doubleSpacePeriod = v) } },
             Tile(Icons.Rounded.AutoFixHigh, tr("Interpunkcja"), tr("Kropka, przecinek, ! i ? po wybranym słowie trafiają za słowo, a spacja za znak"), s.smartPunctuation) { v -> set { it.copy(smartPunctuation = v) } },
             Tile(Icons.Rounded.EmojiEmotions, tr("Emoji w pasku"), tr("Podpowiadanie emoji do słów (np. „kot” → 🐱)"), s.emojiSuggestions) { v -> set { it.copy(emojiSuggestions = v) } },
             Tile(Icons.Rounded.Calculate, tr("Kalkulator"), tr("Wynik działania w pasku: wpisz np. 12*7+3"), s.inlineCalc) { v -> set { it.copy(inlineCalc = v) } },
-            Tile(Icons.AutoMirrored.Rounded.Shortcut, tr("Skróty"), tr("Rozwijanie skrótów tekstowych (np. „pzdr” → „Pozdrawiam”)"), s.shortcuts) { v -> set { it.copy(shortcuts = v) } },
+            Tile(Icons.AutoMirrored.Rounded.Shortcut, tr("Skróty"), tr("Rozwijanie skrótów tekstowych (np. „pzdr” → „Pozdrawiam”); w treści działają {data}, {godzina}, {dzień}, {schowek} i {kursor}"), s.shortcuts) { v -> set { it.copy(shortcuts = v) } },
             Tile(Icons.Rounded.OpenWith, tr("Popraw słowo"), tr("Kursor postawiony na końcu słowa pokazuje dla niego podpowiedzi"), s.reSuggest) { v -> set { it.copy(reSuggest = v) } },
             Tile(Icons.Rounded.ContentPaste, tr("Wklej z paska"), tr("Świeżo skopiowany tekst pojawia się w pasku do wklejenia"), s.clipboardSuggestion) { v -> set { it.copy(clipboardSuggestion = v) } },
         ),
@@ -475,7 +500,7 @@ private fun ColumnScope.SettingsContent(vm: AppViewModel) {
             Tile(Icons.Rounded.Vibration, tr("Wibracja"), tr("Delikatna wibracja przy każdym klawiszu"), s.haptics) { v -> set { it.copy(haptics = v) } },
             Tile(Icons.Rounded.VolumeUp, tr("Dźwięk"), tr("Dźwięk przy naciśnięciu klawisza – rodzaj wybierzesz niżej"), s.sound) { v -> set { it.copy(sound = v) } },
             Tile(Icons.AutoMirrored.Rounded.Backspace, tr("Usuwanie gestem"), tr("Przesuń palec w lewo z Backspace, aby zaznaczyć i usunąć całe słowa"), s.deleteSwipe) { v -> set { it.copy(deleteSwipe = v) } },
-            Tile(Icons.AutoMirrored.Rounded.Backspace, tr("Backspace usuwa słowa"), tr("Przytrzymany Backspace po chwili kasuje całe słowa zamiast pojedynczych liter"), s.deleteWordsOnHold) { v -> set { it.copy(deleteWordsOnHold = v) } },
+            Tile(Icons.AutoMirrored.Rounded.Backspace, tr("Backspace usuwa słowa"), tr("Przytrzymany Backspace kasuje całe słowa zamiast pojedynczych liter"), s.deleteWordsOnHold) { v -> set { it.copy(deleteWordsOnHold = v) } },
 
         ),
     )
@@ -510,9 +535,9 @@ private fun ColumnScope.SettingsContent(vm: AppViewModel) {
             Tile(Icons.Rounded.ContentPaste, tr("Historia schowka"), tr("Zapamiętywanie skopiowanych tekstów (dane poufne są pomijane)"), s.clipboardHistory) { v -> set { it.copy(clipboardHistory = v) } },
             Tile(Icons.Rounded.VisibilityOff, tr("Auto-incognito"), tr("Bez nauki i historii w polach haseł i w trybie prywatnym przeglądarek"), s.incognitoAuto) { v -> set { it.copy(incognitoAuto = v) } },
             Tile(Icons.Rounded.VisibilityOff, tr("Zawsze incognito"), tr("Klawiatura niczego nie zapamiętuje"), s.forceIncognito) { v -> set { it.copy(forceIncognito = v) } },
-            Tile(Icons.Rounded.Mic, tr("Wielka litera w dyktowaniu"), tr("Dyktowany tekst na początku zdania zaczyna się wielką literą"), s.voiceAutoPunct) { v -> set { it.copy(voiceAutoPunct = v) } },
         ),
     )
+    VoiceGroup(vm)
     Group(null) {
         SliderRow(Icons.Rounded.ContentPaste, tr("Pojemność historii schowka"), s.clipboardSize, 10..200, 10) { v -> set { it.copy(clipboardSize = v) } }
         ActionRow(Icons.Rounded.DeleteSweep, tr("Wyczyść historię schowka"), tr("Przypięte wpisy zostaną"), danger = true) {
@@ -604,8 +629,6 @@ private fun About() {
                 .clickable { sys.openUrl("https://redzikowski.com") }
                 .padding(horizontal = 8.dp, vertical = 4.dp),
         )
-    }
-}
         Text(
             "☕  " + tr("Postaw kawę"),
             fontSize = 13.sp,
@@ -618,3 +641,5 @@ private fun About() {
                 .clickable { sys.openUrl("https://buycoffee.to/adamredzikowski") }
                 .padding(horizontal = 18.dp, vertical = 10.dp),
         )
+    }
+}

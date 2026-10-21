@@ -62,6 +62,8 @@ class VoiceInput(private val c: KeyboardController) {
                     SpeechRecognizer.ERROR_NO_MATCH, SpeechRecognizer.ERROR_SPEECH_TIMEOUT -> tr("Nic nie usłyszałem – spróbuj jeszcze raz")
                     SpeechRecognizer.ERROR_NETWORK, SpeechRecognizer.ERROR_NETWORK_TIMEOUT -> tr("Brak połączenia z usługą rozpoznawania mowy")
                     SpeechRecognizer.ERROR_INSUFFICIENT_PERMISSIONS -> tr("Brak uprawnienia do mikrofonu")
+                    SpeechRecognizer.ERROR_RECOGNIZER_BUSY, SpeechRecognizer.ERROR_CLIENT -> tr("Usługa mowy jest zajęta – spróbuj za chwilę")
+                    12, 13 -> tr("Język nieobsługiwany przez usługę mowy")
                     else -> tr("Błąd rozpoznawania mowy ({0})", code)
                 }
                 state = VoiceState.ERROR
@@ -85,7 +87,7 @@ class VoiceInput(private val c: KeyboardController) {
         })
         val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH)
             .putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
-            .putExtra(RecognizerIntent.EXTRA_LANGUAGE, c.activeLanguage)
+            .putExtra(RecognizerIntent.EXTRA_LANGUAGE, java.util.Locale.forLanguageTag(c.activeLanguage).let { l -> if (l.country.isEmpty()) java.util.Locale(l.language, defaultCountry(l.language)).toLanguageTag() else l.toLanguageTag() })
             .putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, true)
             .putExtra(RecognizerIntent.EXTRA_CALLING_PACKAGE, ctx.packageName)
         state = VoiceState.LISTENING
@@ -111,4 +113,12 @@ class VoiceInput(private val c: KeyboardController) {
     }
 
     fun destroy() = stop()
+
+    /** Usługi mowy lepiej rozumieją „pl-PL” niż samo „pl”. */
+    private fun defaultCountry(lang: String): String = when (lang) {
+        "en" -> "US"; "pl" -> "PL"; "de" -> "DE"; "fr" -> "FR"; "es" -> "ES"; "it" -> "IT"; "pt" -> "PT"
+        "uk" -> "UA"; "cs" -> "CZ"; "sk" -> "SK"; "sv" -> "SE"; "da" -> "DK"; "nb", "no" -> "NO"; "el" -> "GR"
+        "ru" -> "RU"; "nl" -> "NL"; "fi" -> "FI"; "hu" -> "HU"; "ro" -> "RO"; "tr" -> "TR"; "lt" -> "LT"; "hr" -> "HR"
+        else -> ""
+    }
 }

@@ -698,10 +698,9 @@ private fun quickTiles(c: KeyboardController): List<QTile> {
         add(QTile(tr("Autokorekta"), acName(s.autocorrect), s.autocorrect != Autocorrect.OFF, options = Autocorrect.entries.map { a -> QOption(acName(a), a == s.autocorrect) { set { it.copy(autocorrect = a) } } }) {
             set { it.copy(autocorrect = Autocorrect.entries[(it.autocorrect.ordinal + 1) % Autocorrect.entries.size]) }
         })
-        add(QTile(tr("Podpowiedzi"), if (s.suggestions) "${s.suggestionCount.coerceIn(3, 5)}" else tr("Wył."), s.suggestions, options = listOf(
+        add(QTile(tr("Podpowiedzi"), if (s.suggestions) tr("Wł.") else tr("Wył."), s.suggestions, options = listOf(
             QOption(tr("Wył."), !s.suggestions) { set { it.copy(suggestions = false) } },
-            QOption("3", s.suggestions && s.suggestionCount < 5) { set { it.copy(suggestions = true, suggestionCount = 3) } },
-            QOption("5", s.suggestions && s.suggestionCount >= 5) { set { it.copy(suggestions = true, suggestionCount = 5) } },
+            QOption(tr("Wł."), s.suggestions) { set { it.copy(suggestions = true) } },
         )) { set { it.copy(suggestions = !it.suggestions) } })
         if (s.languages.size > 1) {
             add(QTile(tr("Język"), Languages.get(s.activeLanguage).native, true, options = s.languages.map { code ->
@@ -987,6 +986,13 @@ fun TextPanel(c: KeyboardController, height: Dp) {
                 PanelTextButton(tr("Zdanie")) { c.transformText(TextTools::sentence) }
                 PanelTextButton(tr("Tytuł")) { c.transformText(TextTools::title) }
                 PanelTextButton("aA ⇄") { c.transformText(TextTools::invert) }
+            }
+            Text(tr("Przekształć – zaznaczenie albo słowo przed kursorem"), color = colors.textDim, fontSize = 11.sp)
+            Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                PanelTextButton(tr("Bez ogonków")) { c.transformText(TextTools::stripDiacritics) }
+                PanelTextButton(tr("Od tyłu")) { c.transformText(TextTools::reverse) }
+                PanelTextButton("uʍop ǝpısdn") { c.transformText(TextTools::upsideDown) }
+                PanelTextButton(tr("Popraw odstępy")) { c.transformText(TextTools::tidySpaces) }
             }
         }
         if (rich) {

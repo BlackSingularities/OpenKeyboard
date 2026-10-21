@@ -99,6 +99,14 @@ data class KeyboardSettings(
     val suggestionCount: Int = 3,
     val smartQuotes: Boolean = false,
     val autoSpaceAfterPunct: Boolean = true,
+    /** Shift w trakcie słowa zmienia jego wielkość: abc → Abc → ABC; przy zaznaczeniu – zaznaczenia. */
+    val shiftCycleWord: Boolean = true,
+    /** Przesunięcie palca w górę po klawiszu wstawia znak z jego rogu. */
+    val flickSymbols: Boolean = true,
+    /** Automatyczne domykanie nawiasów i cudzysłowów. */
+    val autoPair: Boolean = false,
+    /** Przeliczanie jednostek w pasku („5 km” → „3,11 mi”). */
+    val unitConvert: Boolean = true,
 
     // Wygląd
     val theme: String = "black",

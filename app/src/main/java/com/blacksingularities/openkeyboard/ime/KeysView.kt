@@ -80,7 +80,7 @@ import kotlin.math.ceil
 import kotlin.math.roundToInt
 
 /** Po tylu powtórzeniach przytrzymany Backspace przechodzi na usuwanie całych słów. */
-const val DELETE_WORDS_AFTER = 8
+const val DELETE_WORDS_AFTER = 0
 
 /** Położenie klawisza w pikselach (w obrębie siatki klawiszy). */
 
@@ -118,6 +118,8 @@ interface KeyActions {
     fun gesture(action: GestureAction)
     /** Następny (1) lub poprzedni (-1) język – przesuwanie przytrzymanej spacji. Fałsz, gdy jest jeden. */
     fun languageStep(dir: Int): Boolean
+    /** Shift trzymany jednym palcem, gdy drugi pisze litery (true – początek, false – puszczony). */
+    fun shiftChord(held: Boolean) {}
 }
 
 /**
@@ -454,13 +456,15 @@ fun enterIcon(action: Int, multiLine: Boolean): ImageVector = if (multiLine) {
     }
 }
 
-private enum class TrackMode { NORMAL, POPUP, SPACE_CURSOR, DELETE_SWIPE, HIDE, DONE, LONG_DONE, GLIDE, SPACE_UP, SPACE_LANG, SPACE_HELD }
+private enum class TrackMode { FLICK, NORMAL, POPUP, SPACE_CURSOR, DELETE_SWIPE, HIDE, DONE, LONG_DONE, GLIDE, SPACE_UP, SPACE_LANG, SPACE_HELD }
 
 private class Track(val id: Long, var key: KeyRect, val down: Offset) {
     var mode = TrackMode.NORMAL
     var job: Job? = null
     var lastX = down.x
     var words = 0
+    /** Shift przytrzymany, gdy drugi palec pisał – po puszczeniu nie przełącza się. */
+    var chorded = false
     val points = ArrayList<Offset>()
 }
 
@@ -497,6 +501,16 @@ private class TouchTracker(
     fun down(id: Long, p: Offset) {
         val a = actions() ?: return
         val kr = hit(p) ?: return
+        // Shift trzymany jak na klawiaturze komputera: litery drugim palcem są wielkie.
+        if (kr.key.type == KeyType.CHAR) {
+            for (t in tracks.values) {
+                if (t.mode == TrackMode.NORMAL && t.key.key.type == KeyType.SHIFT && !t.chorded) {
+                    t.job?.cancel()
+                    t.chorded = true
+                    a.shiftChord(true)
+                }
+            }
+        }
         // Drugi palec przed puszczeniem pierwszego – pierwszy znak trafia od razu.
         for (t in tracks.values) {
             if (t.mode == TrackMode.NORMAL && (t.key.key.type == KeyType.CHAR || t.key.key.type == KeyType.TEXT)) {
@@ -618,6 +632,16 @@ private class TouchTracker(
                 t.points += p
                 onTrail(t.points.toList())
             }
+            TrackMode.FLICK -> {
+                // Ruch dalej niż krótkie pociągnięcie w górę – to jednak pisanie gestem.
+                if (settings.glideTyping && layout.mode == KeyboardMode.ALPHA && hypot(dx, dy) > keyW * 1.6f) {
+                    t.mode = TrackMode.GLIDE
+                    t.points.clear()
+                    t.points += t.down
+                    t.points += p
+                    onTrail(t.points.toList())
+                }
+            }
             TrackMode.DELETE_SWIPE -> {
                 val w = ((-dx - slop) / (26f * density)).toInt().coerceAtLeast(0) + if (-dx > slop) 1 else 0
                 if (w != t.words) {
@@ -646,6 +670,16 @@ private class TouchTracker(
                     t.mode = if (settings.spaceSwipe == GestureAction.CURSOR) TrackMode.SPACE_CURSOR else TrackMode.SPACE_LANG
                     t.lastX = p.x
                     a.long()
+                    return
+                }
+                // Krótkie pociągnięcie w górę: znak z rogu klawisza (cyfra, symbol, polska litera).
+                if (settings.flickSymbols && k.type == KeyType.CHAR && k.hint != null && tracks.size == 1 &&
+                    -dy > rowH * 0.5f && abs(dx) < -dy * 0.8f
+                ) {
+                    t.job?.cancel()
+                    t.mode = TrackMode.FLICK
+                    update(t.key.id to false, false, null)
+                    a.tick()
                     return
                 }
                 // Pisanie gestem: palec przejechał dalej niż na sąsiedni klawisz.
@@ -709,12 +743,16 @@ private class TouchTracker(
                 a.glide(t.points.map { Pt(it.x, it.y) }, centers, keyW)
             }
             TrackMode.DELETE_SWIPE -> a.selectDone(delete = t.words > 0)
+            TrackMode.FLICK -> t.key.key.hint?.let { h -> a.text(if (upper && h != "ß") h.uppercase() else h) }
             TrackMode.POPUP -> {
                 val pp = popupGetter()
                 onPopup(null)
                 if (pp != null && pp.selected in pp.options.indices) a.text(pp.options[pp.selected])
             }
-            TrackMode.NORMAL -> if (t.key.key.type != KeyType.DELETE) a.commit(t.key.key)
+            TrackMode.NORMAL -> when {
+                t.chorded -> a.shiftChord(false)
+                t.key.key.type != KeyType.DELETE -> a.commit(t.key.key)
+            }
         }
         if (tracks.isEmpty()) update(null, true, null)
     }

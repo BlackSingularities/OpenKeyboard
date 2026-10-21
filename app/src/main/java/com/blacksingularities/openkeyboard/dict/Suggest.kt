@@ -5,7 +5,7 @@ import kotlin.math.abs
 import kotlin.math.ln
 import kotlin.math.min
 
-enum class SuggestionKind { TYPED, WORD, PREDICTION, EMOJI, SHORTCUT, CALC, CLIPBOARD }
+enum class SuggestionKind { TYPED, WORD, PREDICTION, EMOJI, SHORTCUT, CALC, CLIPBOARD, UNDO, CONVERT }
 
 data class Suggestion(
     val text: String,
@@ -38,6 +38,9 @@ private class Candidate(val word: String, var score: Float, var dist: Float)
  * z uwzględnieniem sąsiednich klawiszy, podwojonych liter i przestawień), znaki diakrytyczne bez
  * ich wpisywania („zolw” → „żółw”), wiele języków naraz, słowa i pary słów użytkownika.
  */
+/** Ile podpowiedzi liczyć do przewijanego paska. */
+const val MAX_SUGGESTIONS = 12
+
 object Suggest {
 
     fun suggest(
@@ -47,7 +50,7 @@ object Suggest {
         active: String,
         mode: Autocorrect,
         proximity: Proximity,
-        limit: Int = 3,
+        limit: Int = MAX_SUGGESTIONS,
     ): Suggestions {
         val key = normalizeKey(typed)
         if (key.isEmpty() || typed.any { it.isDigit() }) return Suggestions.Empty
@@ -147,6 +150,18 @@ object Suggest {
             }
             if (allowed && !UserModel.isRejected(typed, top.word)) auto = Suggestion(applyCase(typed, top.word), SuggestionKind.WORD)
         }
+        // Dwa słowa: pominięta spacja („jakdzien” → „jak dzień”) albo litera zamiast spacji („jakndzień”).
+        if (!typedValid && key.length >= 4) {
+            val splits = splitWords(typed, langs)
+            if (splits.isNotEmpty()) {
+                val best = Suggestion(applyCase(typed, splits[0]), SuggestionKind.WORD)
+                val singleClose = top != null && top.dist in 0f..0.6f
+                if (mode != Autocorrect.OFF && !singleClose && !UserModel.isRejected(typed, splits[0])) auto = best
+                items.removeAll { it.text.equals(best.text, ignoreCase = true) }
+                items.add(if (auto == best) 0 else minOf(1, items.size), best)
+                splits.drop(1).take(2).forEach { w -> items.add(minOf(2, items.size), Suggestion(applyCase(typed, w), SuggestionKind.WORD)) }
+            }
+        }
         if (auto != null && auto.text.equals(typed, ignoreCase = true)) {
             items.removeAll { it.text == auto.text }
             items.add(0, auto)
@@ -159,6 +174,45 @@ object Suggest {
             items.add(minOf(1, items.size), Suggestion(typed, SuggestionKind.TYPED, "„$typed”"))
         }
         return Suggestions(items.take(limit), auto, typedValid)
+    }
+
+    /** Litery dolnego rzędu – palec ześlizguje się z nich na spację (i odwrotnie). */
+    private const val NEAR_SPACE = "zxcvbnm"
+    private val ONE_LETTER = setOf("a", "i", "o", "u", "w", "z")
+
+    /** Najlepsza forma części słowa w słownikach (także bez polskich znaków) i jej siła – albo null. */
+    private fun lookup(part: String, langs: List<String>): Pair<String, Float>? {
+        if (part.length == 1 && part.lowercase() !in ONE_LETTER) return null
+        var best: Pair<String, Float>? = null
+        for (lang in langs) {
+            val wl = Dictionaries.get(lang) ?: continue
+            val i = wl.indexOf(part).takeIf { it >= 0 } ?: wl.bestForKey(normalizeKey(part))
+            if (i < 0) continue
+            if (best == null || wl.score[i] > best.second) best = wl.words[i] to wl.score[i]
+        }
+        return best
+    }
+
+    /**
+     * Wpisane słowo jako dwa słowa: brakująca spacja albo litera z dolnego rzędu trafiona zamiast spacji.
+     * Najlepsze propozycje pierwsze (wg słabszego z dwóch słów).
+     */
+    fun splitWords(typed: String, langs: List<String>): List<String> {
+        if (typed.length < 4 || typed.any { !it.isLetter() && it != '\'' && it != '’' }) return emptyList()
+        val out = ArrayList<Pair<String, Float>>()
+        for (i in 1 until typed.length) {
+            val a = lookup(typed.substring(0, i), langs) ?: continue
+            val b = lookup(typed.substring(i), langs) ?: continue
+            out += "${a.first} ${b.first}" to minOf(a.second, b.second) + 0.5f
+        }
+        for (i in 2 until typed.length - 2) {
+            if (typed[i].lowercaseChar() !in NEAR_SPACE) continue
+            val a = lookup(typed.substring(0, i), langs) ?: continue
+            val b = lookup(typed.substring(i + 1), langs) ?: continue
+            out += "${a.first} ${b.first}" to minOf(a.second, b.second)
+        }
+        // Rzadkie słowa (np. pojedyncze litery z końca słownika) dają śmieciowe podziały.
+        return out.filter { it.second >= 2.5f }.sortedByDescending { it.second }.map { it.first }.distinct()
     }
 
     /** Następne słowo po [prev] – z par wyuczonych podczas pisania. */

@@ -31,6 +31,8 @@ class SystemActions(
     val importBackup: () -> Unit,
     val openUrl: (String) -> Unit,
     val pickBackground: () -> Unit,
+    val openAppSettings: () -> Unit = {},
+    val openVoiceSettings: () -> Unit = {},
 )
 
 val LocalSystem = staticCompositionLocalOf<SystemActions> { error("Brak SystemActions") }
@@ -47,6 +49,12 @@ class MainActivity : ComponentActivity() {
 
         setContent {
             val mic = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { ok ->
+                vm.refreshImeState()
+                if (!ok && vm.micAsked && !shouldShowRequestPermissionRationale(Manifest.permission.RECORD_AUDIO)) {
+                    // System już nie pokazuje okna („Nie pytaj ponownie”) – zostają ustawienia aplikacji.
+                    openAppSettings()
+                }
+                vm.micAsked = true
                 vm.toast(if (ok) com.blacksingularities.openkeyboard.i18n.tr("Mikrofon dostępny – dyktowanie działa") else com.blacksingularities.openkeyboard.i18n.tr("Bez mikrofonu dyktowanie nie zadziała"))
             }
             val notif = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { }
@@ -63,12 +71,29 @@ class MainActivity : ComponentActivity() {
                 openImeSettings = { runCatching { startActivity(Intent(Settings.ACTION_INPUT_METHOD_SETTINGS)) } },
                 showImePicker = { getSystemService(InputMethodManager::class.java)?.showInputMethodPicker() },
                 requestMic = { mic.launch(Manifest.permission.RECORD_AUDIO) },
+                openAppSettings = { openAppSettings() },
+                openVoiceSettings = {
+                    // Ustawienia usługi mowy (języki offline itp.) – różne nazwy w zależności od producenta.
+                    val intents = listOf(
+                        Intent("com.android.settings.VOICE_INPUT_SETTINGS"),
+                        Intent(Settings.ACTION_VOICE_INPUT_SETTINGS),
+                        Intent(Settings.ACTION_INPUT_METHOD_SETTINGS),
+                    )
+                    intents.firstOrNull { runCatching { startActivity(it.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) }.isSuccess }
+                },
                 requestNotifications = { if (android.os.Build.VERSION.SDK_INT >= 33) notif.launch(Manifest.permission.POST_NOTIFICATIONS) },
                 exportBackup = { export.launch("OpenKeyboard-kopia.json") },
                 importBackup = { import.launch(arrayOf("application/json", "text/plain", "*/*")) },
                 openUrl = { url -> runCatching { startActivity(Intent(Intent.ACTION_VIEW, android.net.Uri.parse(url))) } },
                 pickBackground = { background.launch("image/*") },
             )
+            androidx.compose.runtime.LaunchedEffect(vm.requestMicOnStart) {
+                if (vm.requestMicOnStart) {
+                    vm.requestMicOnStart = false
+                    vm.refreshImeState()
+                    if (!vm.micGranted) mic.launch(Manifest.permission.RECORD_AUDIO)
+                }
+            }
             OpenKeyboardTheme {
                 CompositionLocalProvider(LocalSystem provides actions) {
                     GlassScope(haptics = vm.settings.haptics) { AppRoot(vm) }
@@ -103,7 +128,13 @@ class MainActivity : ComponentActivity() {
         when (intent?.getStringExtra(EXTRA_SECTION)) {
             "languages" -> vm.sheet = Sheet.LANGUAGES
             "clipboard" -> vm.sheet = null
-            "voice" -> requestPermissions(arrayOf(Manifest.permission.RECORD_AUDIO), 7)
+            "voice" -> vm.requestMicOnStart = true
+        }
+    }
+
+    private fun openAppSettings() {
+        runCatching {
+            startActivity(Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, android.net.Uri.fromParts("package", packageName, null)))
         }
     }
 

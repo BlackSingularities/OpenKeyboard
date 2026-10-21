@@ -44,6 +44,16 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         private set
     var imeSelected by mutableStateOf(false)
         private set
+    /** Uprawnienie do mikrofonu (dyktowanie). */
+    var micGranted by mutableStateOf(false)
+        private set
+    /** W telefonie jest usługa rozpoznawania mowy (np. Google). */
+    var speechAvailable by mutableStateOf(true)
+        private set
+    /** Prośba o mikrofon została już raz odrzucona – kolejna pójdzie do ustawień systemu. */
+    var micAsked by mutableStateOf(false)
+    /** Aplikację otwarto z panelu dyktowania – od razu poproś o mikrofon. */
+    var requestMicOnStart by mutableStateOf(false)
     var message by mutableStateOf<String?>(null)
         private set
 
@@ -72,6 +82,8 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         imeEnabled = imm?.enabledInputMethodList?.any { it.packageName == ctx.packageName } == true
         val current = Settings.Secure.getString(ctx.contentResolver, Settings.Secure.DEFAULT_INPUT_METHOD).orEmpty()
         imeSelected = current.startsWith(ctx.packageName + "/")
+        micGranted = ctx.checkSelfPermission(android.Manifest.permission.RECORD_AUDIO) == android.content.pm.PackageManager.PERMISSION_GRANTED
+        speechAvailable = android.speech.SpeechRecognizer.isRecognitionAvailable(ctx)
     }
 
     /** Obraz tła klawiatury: zmniejszony do rozsądnego rozmiaru i zapisany w plikach aplikacji. */
