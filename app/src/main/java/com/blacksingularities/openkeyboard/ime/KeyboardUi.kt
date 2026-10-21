@@ -486,12 +486,15 @@ private fun Toolbar(c: KeyboardController) {
         if (c.incognito) {
             Icon(Icons.Rounded.VisibilityOff, tr("Tryb incognito"), tint = colors.textDim, modifier = Modifier.padding(horizontal = 8.dp).size(18.dp))
         }
-        Row(
-            Modifier.weight(1f).horizontalScroll(rememberScrollState()),
-            horizontalArrangement = Arrangement.spacedBy(2.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            for (item in c.settings.toolbar) ToolbarButton(c, item)
+        // Ikony wyśrodkowane nad klawiaturą (przewijane, gdy się nie mieszczą).
+        Box(Modifier.weight(1f), contentAlignment = Alignment.Center) {
+            Row(
+                Modifier.horizontalScroll(rememberScrollState()),
+                horizontalArrangement = Arrangement.spacedBy(2.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                for (item in c.settings.toolbar) ToolbarButton(c, item)
+            }
         }
         // Schowek, wynik rachunku, emoji do słowa – także wtedy, gdy widać narzędzia.
         if (c.extras.isNotEmpty()) {
@@ -536,35 +539,30 @@ private fun SuggestionStrip(c: KeyboardController) {
     val auto = c.suggestions.autoCorrect
     Row(Modifier.fillMaxSize(), verticalAlignment = Alignment.CenterVertically) {
         StripIcon(if (c.incognito) Icons.Rounded.VisibilityOff else Icons.Rounded.Apps, tr("Narzędzia")) { c.toolbarOpen = true }
-        // Wszystkie podpowiedzi w przewijanym pasku – najlepsza pierwsza, całe słowa bez „…”.
-        val scroll = remember(items) { androidx.compose.foundation.ScrollState(0) }
-        Row(
-            Modifier.weight(1f).fillMaxHeight().horizontalScroll(scroll),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            items.forEachIndexed { i, sug ->
-                if (i > 0) Box(Modifier.width(1.dp).height(20.dp).background(colors.textDim.copy(alpha = 0.25f)))
+        // Trzy miejsca jak w SwiftKey: najlepsza podpowiedź na środku, druga z lewej, trzecia z prawej.
+        val slots = listOf(items.getOrNull(1), items.getOrNull(0), items.getOrNull(2))
+        Row(Modifier.weight(1f).fillMaxHeight(), verticalAlignment = Alignment.CenterVertically) {
+            slots.forEachIndexed { slot, sug ->
                 Box(
                     Modifier
+                        .weight(1f)
                         .fillMaxHeight()
-                        .widthIn(min = 64.dp)
-                        .tap(onLong = { c.blockSuggestion(sug) }, onClick = { c.pickSuggestion(sug) })
-                        .padding(horizontal = 14.dp),
+                        .then(if (sug != null) Modifier.tap(onLong = { c.blockSuggestion(sug) }, onClick = { c.pickSuggestion(sug) }) else Modifier)
+                        .padding(horizontal = 4.dp),
                     contentAlignment = Alignment.Center,
                 ) {
-                    val isAuto = auto != null && sug.text == auto.text
-                    val strong = i == 0 && (isAuto || c.suggestions.typedValid || sug.kind == SuggestionKind.PREDICTION)
-                    Text(
-                        sug.display,
-                        color = if (sug.kind == SuggestionKind.TYPED) colors.textDim else colors.text,
-                        fontSize = 18.sp,
-                        fontWeight = if (strong) FontWeight.Bold else FontWeight.Normal,
-                        maxLines = 1,
-                        softWrap = false,
-                    )
-                    if (isAuto) {
-                        // Kropka pod słowem: to wstawi spacja (autokorekta).
-                        Box(Modifier.align(Alignment.BottomCenter).padding(bottom = 4.dp).size(4.dp).clip(CircleShape).background(colors.accent))
+                    if (sug != null) {
+                        val isAuto = auto != null && sug.text == auto.text
+                        val strong = slot == 1 && (isAuto || c.suggestions.typedValid || sug.kind == SuggestionKind.PREDICTION)
+                        Text(
+                            sug.display,
+                            color = if (sug.kind == SuggestionKind.TYPED) colors.textDim else colors.text,
+                            fontSize = 18.sp,
+                            fontWeight = if (strong) FontWeight.Bold else FontWeight.Normal,
+                            maxLines = 1,
+                            softWrap = false,
+                            overflow = TextOverflow.Ellipsis,
+                        )
                     }
                 }
             }

@@ -34,9 +34,9 @@ class KeyboardV13Test {
     fun symbolsOnLettersLikeSwiftKey() {
         val l = Layouts.build(KeyboardMode.ALPHA, pl, KeyboardSettings(symbolKeys = true), FieldKind.TEXT, 1)
         val keys = l.rows.flatten().filter { it.type == KeyType.CHAR }.associateBy { it.text }
-        assertEquals("%", keys.getValue("q").popup.first())
-        assertEquals("%", keys.getValue("q").hint)
-        assertEquals("1", keys.getValue("q").hint2)
+        assertEquals("1", keys.getValue("q").popup.first())
+        assertEquals("1", keys.getValue("q").hint)
+        assertEquals("%", keys.getValue("q").hint2)
         assertEquals("@", keys.getValue("a").popup.first())
         assertTrue("ą" in keys.getValue("a").popup)
         assertEquals("ą", keys.getValue("a").hint2)

@@ -411,11 +411,19 @@ class KeyboardController(val service: OpenKeyboardService) {
         } else {
             val punct = text.length == 1 && ch in ".,!?:;)"
             if (composing.isNotEmpty()) commitComposing(autocorrect = punct || ch == '"' || ch == '…', separator = "")
-            if (punct && settings.smartPunctuation && autoSpace) {
-                val before = ic.getTextBeforeCursor(1, 0)
-                if (before == " ") ic.deleteSurroundingText(1, 0)
+            val before2 = ic.getTextBeforeCursor(2, 0)?.toString().orEmpty()
+            // Inteligentny przecinek: „słowo ,” → „słowo, ” – znak wraca na koniec słowa.
+            val afterWordSpace = before2.length == 2 && before2[1] == ' ' && (before2[0].isLetterOrDigit() || before2[0] in ")\"”’")
+            if (punct && settings.smartPunctuation && fieldKind == FieldKind.TEXT && (autoSpace || afterWordSpace)) {
+                if (before2.endsWith(" ")) ic.deleteSurroundingText(1, 0)
                 ic.commitText(text + if (ch in ".,!?:;") " " else "", 1)
                 autoSpace = ch in ".,!?:;"
+            } else if (settings.smartPunctuation && fieldKind == FieldKind.TEXT && text.length == 1 && ch in ".," &&
+                before2.lastOrNull()?.isLetter() == true
+            ) {
+                // Przecinek i kropka po słowie same dodają spację (po cyfrze nie – „3,5”, „1.2”).
+                ic.commitText("$text ", 1)
+                autoSpace = true
             } else if (settings.autoPair && text.length == 1 && ch in PAIRS && fieldKind == FieldKind.TEXT) {
                 ic.commitText(text + PAIRS.getValue(ch), 1)
                 selfEdit()
@@ -479,6 +487,9 @@ class KeyboardController(val service: OpenKeyboardService) {
             } else {
                 ic.commitText(" ", 1)
             }
+        } else if (autoSpace && ic.getTextBeforeCursor(1, 0)?.toString() == " ") {
+            // Spacja już dodana po przecinku/kropce lub podpowiedzi – nie dubluj.
+            autoSpace = false
         } else {
             ic.commitText(" ", 1)
             autoSpace = false
@@ -571,6 +582,8 @@ class KeyboardController(val service: OpenKeyboardService) {
             } else if (before.isNotEmpty()) {
                 val n = if (wordMode) wordLengthBefore(before) else graphemeLengthBefore(before)
                 ic.deleteSurroundingText(n.coerceAtLeast(1), 0)
+                // Backspace doszedł do słowa – znów jest edytowane: podpowiedzi, a dopisane litery trafiają do niego.
+                if (!wordMode && wordSuggestions) resumeWordBeforeCursor(before.dropLast(n.coerceAtLeast(1)))
             } else {
                 // Puste pole – niektóre aplikacje (np. czaty) reagują na samo zdarzenie klawisza.
                 sendKey(KeyEvent.KEYCODE_DEL)
@@ -983,7 +996,7 @@ class KeyboardController(val service: OpenKeyboardService) {
             return
         }
         if (typed.isEmpty()) {
-            suggestions = if (settings.nextWord && !incognito) Suggest.predict(prevForPredict, shift != ShiftState.OFF, 8) else Suggestions.Empty
+            suggestions = if (settings.nextWord && !incognito) Suggest.predict(prevForPredict, shift != ShiftState.OFF, 8, suggestLangs, primaryLanguage) else Suggestions.Empty
             suggestionsFor = ""
             return
         }
@@ -1062,6 +1075,22 @@ class KeyboardController(val service: OpenKeyboardService) {
         composing.append(left)
         keepTyped = true
         selfEdit()
+    }
+
+    /** Słowo tuż przed kursorem (tekst [before]) staje się znów wpisywanym słowem. */
+    private fun resumeWordBeforeCursor(before: String) {
+        val ic = ic ?: return
+        val left = Regex("""[\p{L}'’-]+$""").find(before)?.value.orEmpty()
+        if (left.isEmpty() || !left.any { it.isLetter() }) return
+        val after = ic.getTextAfterCursor(1, 0)?.toString().orEmpty()
+        if (after.isNotEmpty() && after[0].isLetter()) return
+        val et = ic.getExtractedText(android.view.inputmethod.ExtractedTextRequest(), 0) ?: return
+        val cursor = et.startOffset + et.selectionEnd
+        ic.setComposingRegion(cursor - left.length, cursor)
+        composing.clear()
+        composing.append(left)
+        keepTyped = true
+        glidePending = false
     }
 
     fun moveCursor(dx: Int) {

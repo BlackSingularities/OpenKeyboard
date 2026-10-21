@@ -152,7 +152,7 @@ object Suggest {
         }
         // Dwa słowa: pominięta spacja („jakdzien” → „jak dzień”) albo litera zamiast spacji („jakndzień”).
         if (!typedValid && key.length >= 4) {
-            val splits = splitWords(typed, langs)
+            val splits = splitWords(typed, langs, proximity)
             if (splits.isNotEmpty()) {
                 val best = Suggestion(applyCase(typed, splits[0]), SuggestionKind.WORD)
                 val singleClose = top != null && top.dist in 0f..0.6f
@@ -181,7 +181,7 @@ object Suggest {
     private val ONE_LETTER = setOf("a", "i", "o", "u", "w", "z")
 
     /** Najlepsza forma części słowa w słownikach (także bez polskich znaków) i jej siła – albo null. */
-    private fun lookup(part: String, langs: List<String>): Pair<String, Float>? {
+    private fun lookup(part: String, langs: List<String>, proximity: Proximity? = null): Pair<String, Float>? {
         if (part.length == 1 && part.lowercase() !in ONE_LETTER) return null
         var best: Pair<String, Float>? = null
         for (lang in langs) {
@@ -190,6 +190,21 @@ object Suggest {
             if (i < 0) continue
             if (best == null || wl.score[i] > best.second) best = wl.words[i] to wl.score[i]
         }
+        if (best != null || proximity == null || part.length < 3) return best
+        // Literówka w części słowa („jakdzirn” → „jak dzień”): ta sama długość, jedna pomyłka.
+        val key = normalizeKey(part)
+        for (lang in langs) {
+            val wl = Dictionaries.get(lang) ?: continue
+            val bucket = wl.byLength[key.length] ?: continue
+            for (i in bucket) {
+                val k = wl.keys[i]
+                if (k[0] != key[0]) continue
+                val d = distance(key, k, 1f, proximity)
+                if (d > 1f) continue
+                val sc = wl.score[i] - d * 3f
+                if (best == null || sc > best.second) best = wl.words[i] to sc
+            }
+        }
         return best
     }
 
@@ -197,13 +212,26 @@ object Suggest {
      * Wpisane słowo jako dwa słowa: brakująca spacja albo litera z dolnego rzędu trafiona zamiast spacji.
      * Najlepsze propozycje pierwsze (wg słabszego z dwóch słów).
      */
-    fun splitWords(typed: String, langs: List<String>): List<String> {
+    fun splitWords(typed: String, langs: List<String>, proximity: Proximity? = null): List<String> {
         if (typed.length < 4 || typed.any { !it.isLetter() && it != '\'' && it != '’' }) return emptyList()
         val out = ArrayList<Pair<String, Float>>()
         for (i in 1 until typed.length) {
             val a = lookup(typed.substring(0, i), langs) ?: continue
             val b = lookup(typed.substring(i), langs) ?: continue
             out += "${a.first} ${b.first}" to minOf(a.second, b.second) + 0.5f
+        }
+        // Brak dokładnego podziału – jedna z części z literówką (druga musi być poprawna).
+        if (out.isEmpty() && proximity != null) {
+            for (i in 1 until typed.length) {
+                val pa = typed.substring(0, i)
+                val pb = typed.substring(i)
+                val ea = lookup(pa, langs)
+                val eb = lookup(pb, langs)
+                val a = ea ?: if (eb != null) lookup(pa, langs, proximity) else null
+                val b = eb ?: if (ea != null) lookup(pb, langs, proximity) else null
+                if (a == null || b == null) continue
+                out += "${a.first} ${b.first}" to minOf(a.second, b.second) - 0.5f
+            }
         }
         for (i in 2 until typed.length - 2) {
             if (typed[i].lowercaseChar() !in NEAR_SPACE) continue
@@ -216,11 +244,22 @@ object Suggest {
     }
 
     /** Następne słowo po [prev] – z par wyuczonych podczas pisania. */
-    fun predict(prev: String?, capitalize: Boolean, limit: Int = 3): Suggestions {
-        if (prev.isNullOrBlank()) return Suggestions.Empty
-        val next = UserModel.next(prev, limit)
-        if (next.isEmpty()) return Suggestions.Empty
-        return Suggestions(next.map { (w, _) -> Suggestion(if (capitalize) w.replaceFirstChar { it.uppercaseChar() } else w, SuggestionKind.PREDICTION) })
+    fun predict(prev: String?, capitalize: Boolean, limit: Int = 3, langs: List<String> = emptyList(), active: String? = null): Suggestions {
+        val out = LinkedHashSet<String>()
+        if (!prev.isNullOrBlank()) UserModel.next(prev, limit).forEach { out += it.first }
+        // Zawsze coś dalej: brak wyuczonych par → najczęstsze słowa języka (także na początku zdania).
+        val wl = (listOfNotNull(active) + langs).firstNotNullOfOrNull { Dictionaries.get(it) }
+        if (wl != null) {
+            var i = 0
+            while (out.size < minOf(limit, 3) && i < wl.size && i < 200) {
+                val w = wl.words[i++]
+                if (w.length < 2 && w.lowercase() !in ONE_LETTER) continue
+                if (!w.all { it.isLetter() } || UserModel.isBlocked(w) || w.equals(prev, ignoreCase = true)) continue
+                if (out.none { it.equals(w, ignoreCase = true) }) out += w
+            }
+        }
+        if (out.isEmpty()) return Suggestions.Empty
+        return Suggestions(out.take(limit).map { w -> Suggestion(if (capitalize) w.replaceFirstChar { it.uppercaseChar() } else w, SuggestionKind.PREDICTION) })
     }
 
     fun isValid(word: String, langs: List<String>): Boolean =
