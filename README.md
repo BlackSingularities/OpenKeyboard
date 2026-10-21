@@ -74,4 +74,8 @@ app/src/main/java/com/blacksingularities/openkeyboard/
 - Podpis wydań: sekrety `SIGNING_KEYSTORE_BASE64`, `SIGNING_STORE_PASSWORD`, `SIGNING_KEY_ALIAS`, `SIGNING_KEY_PASSWORD` (ten sam klucz między wersjami – inaczej aktualizacja w aplikacji się nie zainstaluje).
 
 ## Licencja
-MIT – zobacz [LICENSE](LICENSE). Pomysł i wykonanie: [redzikowski.com](https://redzikowski.com).
+MIT – zobacz [LICENSE](LICENSE). Projekt i wykonanie: [redzikowski.com](https://redzikowski.com).
+
+---
+
+<a href="https://buycoffee.to/adamredzikowski" target="_blank"><img src="https://buycoffee.to/static/img/share/share-button-dark--pl.png" style="width: 351px; height: 92px" width="351" height="92" alt="Postaw kawę dla adamredzikowski na buycoffee.to"></a>
