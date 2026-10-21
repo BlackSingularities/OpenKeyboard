@@ -382,11 +382,18 @@ class KeyboardController(val service: OpenKeyboardService) {
             return
         }
         // Typograficzne cudzysłowy.
-        if (settings.smartQuotes && composing.isEmpty() && (text == "\"" || text == "'")) {
+        // Także zaraz po wpisywanym słowie – wtedy to cudzysłów zamykający („słowo” zamiast „słowo").
+        if (settings.smartQuotes && (text == "\"" || text == "'")) {
             val prevCh = ic.getTextBeforeCursor(1, 0)?.toString().orEmpty()
             val opening = prevCh.isEmpty() || prevCh[0].isWhitespace() || prevCh[0] in "([{„“‘"
             text = if (text == "\"") {
-                if (opening) (if (activeLanguage in setOf("pl", "de", "cs", "sk", "hu", "ro", "hr", "lt")) "„" else "“") else "”"
+                val low = activeLanguage in LOW_QUOTE_LANGS
+                when {
+                    opening -> if (low) "„" else "“"
+                    // Niemiecki, czeski, słowacki, litewski zamykają „…“; polski, węgierski, rumuński – „…”.
+                    activeLanguage in setOf("de", "cs", "sk", "lt") -> "“"
+                    else -> "”"
+                }
             } else {
                 if (opening) "‘" else "’"
             }
@@ -410,7 +417,7 @@ class KeyboardController(val service: OpenKeyboardService) {
             selfEdit()
         } else {
             val punct = text.length == 1 && ch in ".,!?:;)"
-            if (composing.isNotEmpty()) commitComposing(autocorrect = punct || ch == '"' || ch == '…', separator = "")
+            if (composing.isNotEmpty()) commitComposing(autocorrect = punct || ch == '"' || ch == '”' || ch == '“' || ch == '…', separator = "")
             val before2 = ic.getTextBeforeCursor(2, 0)?.toString().orEmpty()
             // Inteligentny przecinek: „słowo ,” → „słowo, ” – znak wraca na koniec słowa.
             val afterWordSpace = before2.length == 2 && before2[1] == ' ' && (before2[0].isLetterOrDigit() || before2[0] in ")\"”’")
@@ -425,7 +432,7 @@ class KeyboardController(val service: OpenKeyboardService) {
                 ic.commitText("$text ", 1)
                 autoSpace = true
             } else if (settings.autoPair && text.length == 1 && ch in PAIRS && fieldKind == FieldKind.TEXT) {
-                ic.commitText(text + PAIRS.getValue(ch), 1)
+                ic.commitText(text + (if (ch == '„' && activeLanguage in setOf("de", "cs", "sk", "lt")) '“' else PAIRS.getValue(ch)), 1)
                 selfEdit()
                 moveCursor(-1)
                 autoSpace = false
@@ -1312,6 +1319,9 @@ class KeyboardController(val service: OpenKeyboardService) {
         Dictionaries.ensureLoaded(settings.languages)
     }
 }
+
+/** Języki z cudzysłowem otwierającym na dole („…”). */
+private val LOW_QUOTE_LANGS = setOf("pl", "de", "cs", "sk", "hu", "ro", "hr", "lt")
 
 /** Nawiasy i cudzysłowy domykane automatycznie (ustawienie „Domykaj nawiasy”). */
 private val PAIRS = mapOf('(' to ')', '[' to ']', '{' to '}', '„' to '”', '“' to '”', '«' to '»')
