@@ -442,9 +442,9 @@ private fun OneHandedWrapper(c: KeyboardController, content: @Composable () -> U
     BoxWithConstraints(Modifier.fillMaxWidth()) {
         val w = maxWidth * (s.oneHandedWidth / 100f)
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-            if (s.oneHanded == OneHanded.RIGHT) Box(Modifier.weight(1f).height(rowHeight(s, c.layout.mode, false) * c.layout.rows.size)) { side() }
+            if (s.oneHanded == OneHanded.RIGHT) Box(Modifier.weight(1f).height(keysHeight(s, c.layout, false))) { side() }
             Box(Modifier.width(w)) { content() }
-            if (s.oneHanded == OneHanded.LEFT) Box(Modifier.weight(1f).height(rowHeight(s, c.layout.mode, false) * c.layout.rows.size)) { side() }
+            if (s.oneHanded == OneHanded.LEFT) Box(Modifier.weight(1f).height(keysHeight(s, c.layout, false))) { side() }
         }
     }
 }

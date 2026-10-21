@@ -13,6 +13,7 @@
 - **Dwa słowa także z literówką** („jakdzirn” → „jak dzień”).
 - **Przytrzymanie litery z górnego rzędu daje cyfrę**, nie symbol (symbol w lewym rogu, nadal w okienku).
 - **Podpowiedzi następnego słowa zawsze** – także na początku zdania i bez wyuczonych par.
+- **Niższy dolny rząd ze spacją.**
 
 ## 1.4.0
 - **Shift w trakcie słowa**: pierwsze naciśnięcie robi wielką pierwszą literę („kot” → „Kot”), drugie – całe słowo wielkimi („KOT”, dalsze litery też wielkie do końca słowa), trzecie wraca do małych. Shift przy zaznaczonym tekście zmienia jego wielkość liter.
