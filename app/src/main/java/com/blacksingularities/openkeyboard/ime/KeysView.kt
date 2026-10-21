@@ -93,6 +93,19 @@ class PopupState(val owner: Int, val options: List<String>, val cell: Float, val
 }
 
 /** Wysokość rzędu klawiszy (dp) wg ustawień i trybu. */
+/** Dolny rząd ze spacją jest niższy od rzędów liter. */
+const val BOTTOM_ROW_FACTOR = 0.8f
+
+/** Względne wysokości rzędów układu (1 = zwykły rząd). */
+fun rowFactors(layout: KeyboardLayout): FloatArray = FloatArray(layout.rows.size) { r ->
+    val numpad = layout.mode == KeyboardMode.NUMBER || layout.mode == KeyboardMode.PHONE
+    if (!numpad && r == layout.rows.size - 1 && layout.rows[r].any { it.type == KeyType.SPACE }) BOTTOM_ROW_FACTOR else 1f
+}
+
+/** Łączna wysokość klawiszy układu. */
+fun keysHeight(s: KeyboardSettings, layout: KeyboardLayout, landscape: Boolean): Dp =
+    rowHeight(s, layout.mode, landscape) * rowFactors(layout).sum()
+
 fun rowHeight(s: KeyboardSettings, mode: KeyboardMode, landscape: Boolean): Dp {
     val base = if (mode == KeyboardMode.NUMBER || mode == KeyboardMode.PHONE) 56f else 52f
     val l = if (landscape) 0.78f else 1f
@@ -151,7 +164,7 @@ fun KeyGrid(
     val split = layout.mode != KeyboardMode.NUMBER && layout.mode != KeyboardMode.PHONE &&
         (settings.split == SplitMode.ALWAYS || (settings.split == SplitMode.LANDSCAPE && landscape))
 
-    BoxWithConstraints(modifier.fillMaxWidth().height(rowH * layout.rows.size)) {
+    BoxWithConstraints(modifier.fillMaxWidth().height(rowH * rowFactors(layout).sum())) {
         val wPx = constraints.maxWidth.toFloat()
         val hPx = with(density) { rowH.toPx() }
         // Klawiatura dzielona: przerwa na środku (w jednostkach klawisza), spacja się rozciąga.
@@ -160,6 +173,8 @@ fun KeyGrid(
         val rects = remember(layout, wPx, hPx, gapUnits) {
             var id = 0
             val mid = layout.units / 2f
+            val factors = rowFactors(layout)
+            val tops = FloatArray(factors.size + 1).also { t -> for (i in factors.indices) t[i + 1] = t[i] + factors[i] * hPx }
             layout.rows.flatMapIndexed { r, row ->
                 var u = (layout.units - row.sumOf { it.width.toDouble() }.toFloat()) / 2f
                 row.map { k ->
@@ -172,7 +187,7 @@ fun KeyGrid(
                         start >= mid - 0.01f -> start + gapUnits to end + gapUnits
                         else -> start to end + gapUnits
                     }
-                    KeyRect(id++, k, r, Rect(l * unit, r * hPx, rr * unit, (r + 1) * hPx))
+                    KeyRect(id++, k, r, Rect(l * unit, tops[r], rr * unit, tops[r + 1]))
                 }
             }
         }
@@ -492,7 +507,8 @@ private class TouchTracker(
 
     private fun hit(p: Offset): KeyRect? {
         if (rects.isEmpty()) return null
-        val row = (p.y / rowH).toInt().coerceIn(0, layout.rows.size - 1)
+        val last = rects.maxOf { it.row }
+        val row = rects.firstOrNull { p.y >= it.rect.top && p.y < it.rect.bottom }?.row ?: if (p.y < 0) 0 else last
         val inRow = rects.filter { it.row == row }
         return inRow.firstOrNull { p.x >= it.rect.left && p.x < it.rect.right }
             ?: inRow.minByOrNull { minOf(abs(p.x - it.rect.left), abs(p.x - it.rect.right)) }

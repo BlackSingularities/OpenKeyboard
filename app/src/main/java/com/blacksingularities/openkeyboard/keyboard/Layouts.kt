@@ -116,21 +116,22 @@ object Layouts {
         val primary = lang.accents[c].orEmpty()
         val generic = Languages.genericAccents[c].orEmpty().filter { it !in primary }
         val popup = buildList {
-            if (symbol != null) add(symbol)
+            // Cyfra pierwsza: przytrzymanie litery z górnego rzędu daje cyfrę, nie symbol.
             if (digit != null) add(digit)
+            if (symbol != null) add(symbol)
             primary.forEach { add(it.toString()) }
             // Ogólne znaki tylko dla alfabetu łacińskiego – w cyrylicy i greckim byłyby szumem.
             if (c in 'a'..'z') generic.forEach { add(it.toString()) }
         }.distinct()
         val hint = when {
             !hints -> null
-            symbol != null -> symbol
             digit != null -> digit
+            symbol != null -> symbol
             primary.isNotEmpty() -> primary.first().toString()
             else -> null
         }
-        // Przy symbolach cyfra (albo polski znak) zostaje widoczna w lewym rogu – to drugi znak.
-        val hint2 = if (hints && symbol != null) digit ?: primary.firstOrNull()?.toString() else null
+        // Drugi znak w lewym rogu: symbol przy cyfrze, albo polski znak przy symbolu.
+        val hint2 = if (hints && symbol != null) (if (digit != null) symbol else primary.firstOrNull()?.toString()) else null
         return Key(KeyType.CHAR, c.toString(), popup = popup, hint = hint, hint2 = hint2)
     }
 

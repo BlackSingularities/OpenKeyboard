@@ -5,6 +5,16 @@
 
 # Zmiany
 
+## 1.5.0
+- **Najlepsza podpowiedź na środku paska** (jak w SwiftKey), bez separatorów i kropki – wyróżniona tylko pogrubieniem.
+- **Ikony nad klawiaturą wyśrodkowane.**
+- **Backspace wraca do słowa**: po dojściu do słowa znów są jego podpowiedzi, a dopisane litery trafiają do tego słowa (nie zapisują się w słowniku jako nowe).
+- **Inteligentny przecinek i kropka**: „słowo ,” → „słowo, ”; przecinek i kropka po słowie same dodają spację (po cyfrze nie – „3,5”), a spacja tuż po nich się nie dubluje.
+- **Dwa słowa także z literówką** („jakdzirn” → „jak dzień”).
+- **Przytrzymanie litery z górnego rzędu daje cyfrę**, nie symbol (symbol w lewym rogu, nadal w okienku).
+- **Podpowiedzi następnego słowa zawsze** – także na początku zdania i bez wyuczonych par.
+- **Niższy dolny rząd ze spacją.**
+
 ## 1.4.0
 - **Shift w trakcie słowa**: pierwsze naciśnięcie robi wielką pierwszą literę („kot” → „Kot”), drugie – całe słowo wielkimi („KOT”, dalsze litery też wielkie do końca słowa), trzecie wraca do małych. Shift przy zaznaczonym tekście zmienia jego wielkość liter.
 - **Shift trzymany jak na komputerze**: przytrzymaj Shift jednym palcem i pisz drugim – wielkie litery tylko do puszczenia.
