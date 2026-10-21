@@ -996,7 +996,7 @@ class KeyboardController(val service: OpenKeyboardService) {
             return
         }
         if (typed.isEmpty()) {
-            suggestions = if (settings.nextWord && !incognito) Suggest.predict(prevForPredict, shift != ShiftState.OFF, 8, suggestLangs, primaryLanguage) else Suggestions.Empty
+            suggestions = if (settings.nextWord && !incognito) Suggest.predict(prevForPredict, shift != ShiftState.OFF, 30, suggestLangs, primaryLanguage) else Suggestions.Empty
             suggestionsFor = ""
             return
         }

@@ -38,8 +38,8 @@ private class Candidate(val word: String, var score: Float, var dist: Float)
  * z uwzględnieniem sąsiednich klawiszy, podwojonych liter i przestawień), znaki diakrytyczne bez
  * ich wpisywania („zolw” → „żółw”), wiele języków naraz, słowa i pary słów użytkownika.
  */
-/** Ile podpowiedzi liczyć do przewijanego paska. */
-const val MAX_SUGGESTIONS = 12
+/** Ile podpowiedzi liczyć do przewijanego paska – tyle, ile silnik uzna za sensowne. */
+const val MAX_SUGGESTIONS = 50
 
 object Suggest {
 
@@ -89,7 +89,7 @@ object Suggest {
             if (same >= 0 && same != exact) offer(wl.words[same], wl.score[same] * weight + 6.5f, 0.05f)
 
             // Uzupełnienia: im dłuższy brakujący fragment, tym mniejsza szansa.
-            for (i in wl.withPrefix(key, 14)) {
+            for (i in wl.withPrefix(key, 40)) {
                 val extra = wl.keys[i].length - key.length
                 if (extra == 0) continue
                 offer(wl.words[i], wl.score[i] * weight - 0.55f * extra + 1.2f, -1f)
@@ -118,7 +118,7 @@ object Suggest {
         }
 
         // Słowa użytkownika – wyuczone z pisania.
-        for ((w, count) in UserModel.withPrefix(key, 8)) {
+        for ((w, count) in UserModel.withPrefix(key, 20)) {
             val extra = normalizeKey(w).length - key.length
             val s = 7f + ln(count + 1f) * 1.6f - 0.55f * extra
             if (extra == 0) typedValid = typedValid || (count >= 2 && w.equals(typed, ignoreCase = true))
@@ -258,7 +258,7 @@ object Suggest {
         val wl = (listOfNotNull(active) + langs).firstNotNullOfOrNull { Dictionaries.get(it) }
         if (wl != null) {
             var i = 0
-            while (out.size < minOf(limit, 3) && i < wl.size && i < 200) {
+            while (out.size < limit && i < wl.size && i < 400) {
                 val w = wl.words[i++]
                 if (w.length < 2 && w.lowercase() !in ONE_LETTER) continue
                 if (!w.all { it.isLetter() } || UserModel.isBlocked(w) || w.equals(prev, ignoreCase = true)) continue

@@ -539,21 +539,29 @@ private fun SuggestionStrip(c: KeyboardController) {
     val auto = c.suggestions.autoCorrect
     Row(Modifier.fillMaxSize(), verticalAlignment = Alignment.CenterVertically) {
         StripIcon(if (c.incognito) Icons.Rounded.VisibilityOff else Icons.Rounded.Apps, tr("Narzędzia")) { c.toolbarOpen = true }
-        // Trzy miejsca jak w SwiftKey: najlepsza podpowiedź na środku, druga z lewej, trzecia z prawej.
-        val slots = listOf(items.getOrNull(1), items.getOrNull(0), items.getOrNull(2))
-        Row(Modifier.weight(1f).fillMaxHeight(), verticalAlignment = Alignment.CenterVertically) {
-            slots.forEachIndexed { slot, sug ->
-                Box(
-                    Modifier
-                        .weight(1f)
-                        .fillMaxHeight()
-                        .then(if (sug != null) Modifier.tap(onLong = { c.blockSuggestion(sug) }, onClick = { c.pickSuggestion(sug) }) else Modifier)
-                        .padding(horizontal = 4.dp),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    if (sug != null) {
+        // Najlepsza podpowiedź na środku pierwszego ekranu (druga z lewej, trzecia z prawej),
+        // kolejne – ile ich silnik znajdzie – po przewinięciu w prawo.
+        val ordered = if (items.size >= 2) listOf(items[1], items[0]) + items.drop(2) else items
+        BoxWithConstraints(Modifier.weight(1f).fillMaxHeight()) {
+            val slotW = maxWidth / 3
+            val scroll = remember(items) { androidx.compose.foundation.ScrollState(0) }
+            Row(
+                Modifier.fillMaxHeight().horizontalScroll(scroll),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                if (ordered.size == 1) Spacer(Modifier.width(slotW))
+                ordered.forEach { sug ->
+                    val main = sug === items[0]
+                    Box(
+                        Modifier
+                            .fillMaxHeight()
+                            .widthIn(min = slotW)
+                            .tap(onLong = { c.blockSuggestion(sug) }, onClick = { c.pickSuggestion(sug) })
+                            .padding(horizontal = 8.dp),
+                        contentAlignment = Alignment.Center,
+                    ) {
                         val isAuto = auto != null && sug.text == auto.text
-                        val strong = slot == 1 && (isAuto || c.suggestions.typedValid || sug.kind == SuggestionKind.PREDICTION)
+                        val strong = main && (isAuto || c.suggestions.typedValid || sug.kind == SuggestionKind.PREDICTION)
                         Text(
                             sug.display,
                             color = if (sug.kind == SuggestionKind.TYPED) colors.textDim else colors.text,
@@ -561,7 +569,6 @@ private fun SuggestionStrip(c: KeyboardController) {
                             fontWeight = if (strong) FontWeight.Bold else FontWeight.Normal,
                             maxLines = 1,
                             softWrap = false,
-                            overflow = TextOverflow.Ellipsis,
                         )
                     }
                 }

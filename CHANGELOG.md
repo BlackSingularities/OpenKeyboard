@@ -6,6 +6,7 @@
 # Zmiany
 
 ## 1.5.1
+- **Dowolna liczba podpowiedzi**: usunięta opcja liczby podpowiedzi – pasek pokazuje tyle słów, ile znajdzie silnik (do 50), najlepsze na środku, kolejne po przewinięciu.
 - **Polskie jednoliterowe spójniki i przyimki** („i”, „w”, „z”, „a”, „o”, „u”) zostają małe – nie zmieniają się w angielskie „I”, gdy włączony jest też angielski.
 
 ## 1.5.0

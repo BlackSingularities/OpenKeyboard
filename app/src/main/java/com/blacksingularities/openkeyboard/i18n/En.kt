@@ -403,7 +403,6 @@ internal val En: Map<String, String> = hashMapOf(
     "Klawiatura dzielona" to "Split keyboard",
     "Klawiatura rozpoznaje, w jakim języku właśnie piszesz, i jego słowom daje pierwszeństwo" to "The keyboard recognizes which language you're typing and gives its words priority",
     "Krycie klawiszy" to "Key opacity",
-    "Liczba podpowiedzi" to "Number of suggestions",
     "Lista języków" to "Language list",
     "Maszynowa" to "Monospace",
     "Narzędzia tekstu" to "Text tools",
