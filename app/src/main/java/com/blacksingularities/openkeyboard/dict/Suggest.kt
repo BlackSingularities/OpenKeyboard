@@ -99,10 +99,11 @@ object Suggest {
             if (key.length >= 2) {
                 val maxDist = when {
                     key.length <= 3 -> 1f
-                    key.length <= 6 -> 1.6f
-                    else -> 2.2f
+                    key.length <= 5 -> 1.6f
+                    key.length <= 8 -> 2.2f
+                    else -> 2.8f
                 }
-                val lens = (key.length - 1)..(key.length + if (key.length >= 6) 2 else 1)
+                val lens = (key.length - if (key.length >= 6) 2 else 1)..(key.length + if (key.length >= 6) 2 else 1)
                 for (len in lens) {
                     val bucket = wl.byLength[len] ?: continue
                     for (i in bucket) {
@@ -151,7 +152,8 @@ object Suggest {
         if (mode != Autocorrect.OFF && !typedValid && top != null && top.dist >= 0 && key.length >= 2 && !(typed.length > 1 && typed.all { it.isUpperCase() })) {
             val allowed = when (mode) {
                 Autocorrect.GENTLE -> top.dist <= 0.1f || (top.dist <= 1f && key.length >= 4)
-                Autocorrect.NORMAL -> top.dist <= 1.1f || (top.dist <= 1.7f && key.length >= 6)
+                // Bełkot w dłuższych słowach też poprawiamy – byle kandydat był wyraźnie najlepszy.
+                Autocorrect.NORMAL -> top.dist <= 1.2f || (top.dist <= 1.8f && key.length >= 5) || (top.dist <= 2.4f && key.length >= 8)
                 Autocorrect.AGGRESSIVE -> true
                 Autocorrect.OFF -> false
             }
@@ -222,29 +224,28 @@ object Suggest {
     fun splitWords(typed: String, langs: List<String>, proximity: Proximity? = null): List<String> {
         if (typed.length < 4 || typed.any { !it.isLetter() && it != '\'' && it != '’' }) return emptyList()
         val out = ArrayList<Pair<String, Float>>()
-        for (i in 1 until typed.length) {
-            val a = lookup(typed.substring(0, i), langs) ?: continue
-            val b = lookup(typed.substring(i), langs) ?: continue
-            out += "${a.first} ${b.first}" to minOf(a.second, b.second) + 0.5f
+        // Podziały: (pierwsza część, druga część, bonus). Pominięta spacja albo litera
+        // z dolnego rzędu zamiast spacji – także po jednoliterowym słowie („wbtej” → „w tej”).
+        val parts = ArrayList<Triple<String, String, Float>>()
+        for (i in 1 until typed.length) parts += Triple(typed.substring(0, i), typed.substring(i), 0.5f)
+        for (i in 1 until typed.length - 1) {
+            if (typed[i].lowercaseChar() in NEAR_SPACE) parts += Triple(typed.substring(0, i), typed.substring(i + 1), 0f)
+        }
+        for ((pa, pb, bonus) in parts) {
+            val a = lookup(pa, langs) ?: continue
+            val b = lookup(pb, langs) ?: continue
+            out += "${a.first} ${b.first}" to minOf(a.second, b.second) + bonus
         }
         // Brak dokładnego podziału – jedna z części z literówką (druga musi być poprawna).
         if (out.isEmpty() && proximity != null) {
-            for (i in 1 until typed.length) {
-                val pa = typed.substring(0, i)
-                val pb = typed.substring(i)
+            for ((pa, pb, bonus) in parts) {
                 val ea = lookup(pa, langs)
                 val eb = lookup(pb, langs)
                 val a = ea ?: if (eb != null) lookup(pa, langs, proximity) else null
                 val b = eb ?: if (ea != null) lookup(pb, langs, proximity) else null
                 if (a == null || b == null) continue
-                out += "${a.first} ${b.first}" to minOf(a.second, b.second) - 0.5f
+                out += "${a.first} ${b.first}" to minOf(a.second, b.second) + bonus - 0.5f
             }
-        }
-        for (i in 2 until typed.length - 2) {
-            if (typed[i].lowercaseChar() !in NEAR_SPACE) continue
-            val a = lookup(typed.substring(0, i), langs) ?: continue
-            val b = lookup(typed.substring(i + 1), langs) ?: continue
-            out += "${a.first} ${b.first}" to minOf(a.second, b.second)
         }
         // Rzadkie słowa (np. pojedyncze litery z końca słownika) dają śmieciowe podziały.
         return out.filter { it.second >= 2.5f }.sortedByDescending { it.second }.map { it.first }.distinct()

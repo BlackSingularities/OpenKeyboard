@@ -5,6 +5,9 @@
 
 # Zmiany
 
+## 1.5.2
+- **Mądrzejsza autokorekta**: poprawia większy bełkot w dłuższych słowach (więcej literówek i pominiętych liter) i rozdziela sklejone słowa także po jednoliterowym słowie i z literą zamiast spacji („wbtej” → „w tej”, „ibrozumiec” → „i rozumieć”).
+
 ## 1.5.1
 - **Podpowiedź następnego słowa nie znika po pierwszej literze** – pasujące przewidziane słowa zostają na początku paska.
 - **Poprawne polskie cudzysłowy**: zamykający „”” wstawia się także zaraz po słowie (wcześniej zostawał prosty `"`); niemiecki, czeski, słowacki i litewski zamykają „“”.

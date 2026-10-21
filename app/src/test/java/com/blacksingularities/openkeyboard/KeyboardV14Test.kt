@@ -79,11 +79,14 @@ class KeyboardV14Test {
 
     @Test
     fun missedSpaceGivesTwoWords() {
-        Dictionaries.putForTest("xx", WordList.parse("xx", sequenceOf("rzadkie	1", "jak	5000", "dzień	3000", "dobry	2500", "kot	900", "i	9000")))
+        Dictionaries.putForTest("xx", WordList.parse("xx", sequenceOf("rzadkie	1", "jak	5000", "dzień	3000", "dobry	2500", "kot	900", "i	9000", "w	8000", "tej	4000", "rozumieć	1500")))
         val langs = listOf("xx")
         assertEquals("jak dzień", Suggest.splitWords("jakdzien", langs).first())
         // Litera z dolnego rzędu zamiast spacji.
         assertEquals("dzień dobry", Suggest.splitWords("dzieńndobry", langs).first())
         assertTrue(Suggest.splitWords("xyzkot", langs).isEmpty())
+        // Jednoliterowe słowo i litera zamiast spacji, bez polskich znaków.
+        assertEquals("w tej", Suggest.splitWords("wbtej", langs).first())
+        assertEquals("i rozumieć", Suggest.splitWords("ibrozumiec", langs).first())
     }
 }
