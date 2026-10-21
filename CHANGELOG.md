@@ -5,6 +5,12 @@
 
 # Zmiany
 
+## 1.5.1
+- **Podpowiedź następnego słowa nie znika po pierwszej literze** – pasujące przewidziane słowa zostają na początku paska.
+- **Poprawne polskie cudzysłowy**: zamykający „”” wstawia się także zaraz po słowie (wcześniej zostawał prosty `"`); niemiecki, czeski, słowacki i litewski zamykają „“”.
+- **Dowolna liczba podpowiedzi**: usunięta opcja liczby podpowiedzi – pasek pokazuje tyle słów, ile znajdzie silnik (do 50), najlepsze na środku, kolejne po przewinięciu.
+- **Polskie jednoliterowe spójniki i przyimki** („i”, „w”, „z”, „a”, „o”, „u”) zostają małe – nie zmieniają się w angielskie „I”, gdy włączony jest też angielski.
+
 ## 1.5.0
 - **Najlepsza podpowiedź na środku paska** (jak w SwiftKey), bez separatorów i kropki – wyróżniona tylko pogrubieniem.
 - **Ikony nad klawiaturą wyśrodkowane.**

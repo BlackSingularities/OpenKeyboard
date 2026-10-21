@@ -382,11 +382,18 @@ class KeyboardController(val service: OpenKeyboardService) {
             return
         }
         // Typograficzne cudzysłowy.
-        if (settings.smartQuotes && composing.isEmpty() && (text == "\"" || text == "'")) {
+        // Także zaraz po wpisywanym słowie – wtedy to cudzysłów zamykający („słowo” zamiast „słowo").
+        if (settings.smartQuotes && (text == "\"" || text == "'")) {
             val prevCh = ic.getTextBeforeCursor(1, 0)?.toString().orEmpty()
             val opening = prevCh.isEmpty() || prevCh[0].isWhitespace() || prevCh[0] in "([{„“‘"
             text = if (text == "\"") {
-                if (opening) (if (activeLanguage in setOf("pl", "de", "cs", "sk", "hu", "ro", "hr", "lt")) "„" else "“") else "”"
+                val low = activeLanguage in LOW_QUOTE_LANGS
+                when {
+                    opening -> if (low) "„" else "“"
+                    // Niemiecki, czeski, słowacki, litewski zamykają „…“; polski, węgierski, rumuński – „…”.
+                    activeLanguage in setOf("de", "cs", "sk", "lt") -> "“"
+                    else -> "”"
+                }
             } else {
                 if (opening) "‘" else "’"
             }
@@ -410,7 +417,7 @@ class KeyboardController(val service: OpenKeyboardService) {
             selfEdit()
         } else {
             val punct = text.length == 1 && ch in ".,!?:;)"
-            if (composing.isNotEmpty()) commitComposing(autocorrect = punct || ch == '"' || ch == '…', separator = "")
+            if (composing.isNotEmpty()) commitComposing(autocorrect = punct || ch == '"' || ch == '”' || ch == '“' || ch == '…', separator = "")
             val before2 = ic.getTextBeforeCursor(2, 0)?.toString().orEmpty()
             // Inteligentny przecinek: „słowo ,” → „słowo, ” – znak wraca na koniec słowa.
             val afterWordSpace = before2.length == 2 && before2[1] == ' ' && (before2[0].isLetterOrDigit() || before2[0] in ")\"”’")
@@ -425,7 +432,7 @@ class KeyboardController(val service: OpenKeyboardService) {
                 ic.commitText("$text ", 1)
                 autoSpace = true
             } else if (settings.autoPair && text.length == 1 && ch in PAIRS && fieldKind == FieldKind.TEXT) {
-                ic.commitText(text + PAIRS.getValue(ch), 1)
+                ic.commitText(text + (if (ch == '„' && activeLanguage in setOf("de", "cs", "sk", "lt")) '“' else PAIRS.getValue(ch)), 1)
                 selfEdit()
                 moveCursor(-1)
                 autoSpace = false
@@ -668,7 +675,7 @@ class KeyboardController(val service: OpenKeyboardService) {
         }
         // Wielkość liter: początek zdania, „HEllo”, angielskie dni i miesiące.
         if (autocorrect && settings.autoCapitalize && !capsWord && wordSuggestions && final == typed && !keepTyped) {
-            val fixed = SmartCase.fix(final, composingAtSentenceStart(), suggestLangs)
+            val fixed = SmartCase.fix(final, composingAtSentenceStart(), suggestLangs, primaryLanguage)
             if (fixed != final) {
                 final = fixed
                 lastCorrection = Triple(typed, final, separator)
@@ -838,12 +845,26 @@ class KeyboardController(val service: OpenKeyboardService) {
         get() = detectedLanguage?.takeIf { settings.autoLanguage && settings.multilingual && it in settings.languages } ?: settings.activeLanguage
 
     private fun computeSuggestions(typed: String, sentenceStart: Boolean = false): Suggestions {
-        val s = Suggest.suggest(typed, previousWordSafe, suggestLangs, primaryLanguage, settings.autocorrect, proximity)
+        var s = Suggest.suggest(typed, previousWordSafe, suggestLangs, primaryLanguage, settings.autocorrect, proximity)
+        // Przewidziane następne słowo nie znika po pierwszej literze – pasujące zostają na początku paska.
+        if (settings.nextWord && !incognito) {
+            val key = normalizeKey(typed)
+            // Wyuczone pary słów; najczęstsze słowa języka i tak wygrywają w zwykłym rankingu.
+            val preds = previousWordSafe?.let { UserModel.next(it, 30) }.orEmpty()
+                .map { it.first }
+                .filter { normalizeKey(it).startsWith(key) && normalizeKey(it) != key && !UserModel.isBlocked(it) }
+            if (preds.isNotEmpty()) {
+                val boosted = preds.take(3).map { Suggestion(Suggest.applyCase(typed, it), SuggestionKind.WORD) }
+                val rest = s.items.filter { i -> boosted.none { it.text.equals(i.text, ignoreCase = true) } }
+                val head = if (s.autoCorrect != null) rest.take(1) else emptyList()
+                s = s.copy(items = head + boosted + rest.drop(head.size))
+            }
+        }
         if (!settings.autoCapitalize || capsWord) return s
         // Początek zdania: podpowiedzi i autokorekta z wielkiej litery, nawet gdy pisano małą.
         fun fix(x: Suggestion): Suggestion {
             if (x.kind != SuggestionKind.WORD) return x
-            val t = SmartCase.fix(x.text, sentenceStart, suggestLangs)
+            val t = SmartCase.fix(x.text, sentenceStart, suggestLangs, primaryLanguage)
             return if (t == x.text) x else x.copy(text = t, display = t)
         }
         val auto = s.autoCorrect?.let(::fix)
@@ -996,7 +1017,7 @@ class KeyboardController(val service: OpenKeyboardService) {
             return
         }
         if (typed.isEmpty()) {
-            suggestions = if (settings.nextWord && !incognito) Suggest.predict(prevForPredict, shift != ShiftState.OFF, 8, suggestLangs, primaryLanguage) else Suggestions.Empty
+            suggestions = if (settings.nextWord && !incognito) Suggest.predict(prevForPredict, shift != ShiftState.OFF, 30, suggestLangs, primaryLanguage) else Suggestions.Empty
             suggestionsFor = ""
             return
         }
@@ -1312,6 +1333,9 @@ class KeyboardController(val service: OpenKeyboardService) {
         Dictionaries.ensureLoaded(settings.languages)
     }
 }
+
+/** Języki z cudzysłowem otwierającym na dole („…”). */
+private val LOW_QUOTE_LANGS = setOf("pl", "de", "cs", "sk", "hu", "ro", "hr", "lt")
 
 /** Nawiasy i cudzysłowy domykane automatycznie (ustawienie „Domykaj nawiasy”). */
 private val PAIRS = mapOf('(' to ')', '[' to ']', '{' to '}', '„' to '”', '“' to '”', '«' to '»')

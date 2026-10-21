@@ -38,8 +38,8 @@ private class Candidate(val word: String, var score: Float, var dist: Float)
  * z uwzględnieniem sąsiednich klawiszy, podwojonych liter i przestawień), znaki diakrytyczne bez
  * ich wpisywania („zolw” → „żółw”), wiele języków naraz, słowa i pary słów użytkownika.
  */
-/** Ile podpowiedzi liczyć do przewijanego paska. */
-const val MAX_SUGGESTIONS = 12
+/** Ile podpowiedzi liczyć do przewijanego paska – tyle, ile silnik uzna za sensowne. */
+const val MAX_SUGGESTIONS = 50
 
 object Suggest {
 
@@ -56,6 +56,8 @@ object Suggest {
         if (key.isEmpty() || typed.any { it.isDigit() }) return Suggestions.Empty
         val cands = HashMap<String, Candidate>()
         var typedValid = false
+        // Wpisana forma istnieje dokładnie tak (np. polskie „i”) – nie zmieniaj jej na „I”.
+        var typedExactCase = false
 
         fun offer(word: String, score: Float, dist: Float) {
             if (UserModel.isBlocked(word)) return
@@ -64,6 +66,10 @@ object Suggest {
             if (c == null) {
                 cands[k] = Candidate(word, score, dist)
             } else {
+                if (dist == 0f && word == typed) {
+                    cands[k] = Candidate(word, maxOf(score, c.score), 0f)
+                    return
+                }
                 if (score > c.score) c.score = score
                 if (dist >= 0 && (c.dist < 0 || dist < c.dist)) c.dist = dist
             }
@@ -75,6 +81,7 @@ object Suggest {
             val exact = wl.indexOf(typed)
             if (exact >= 0) {
                 typedValid = true
+                if (wl.words[exact] == typed) typedExactCase = true
                 offer(wl.words[exact], wl.score[exact] * weight + 8f, 0f)
             }
             // Ten sam klucz bez znaków diakrytycznych („zolw” → „żółw”, „dont” → „don't”).
@@ -82,7 +89,7 @@ object Suggest {
             if (same >= 0 && same != exact) offer(wl.words[same], wl.score[same] * weight + 6.5f, 0.05f)
 
             // Uzupełnienia: im dłuższy brakujący fragment, tym mniejsza szansa.
-            for (i in wl.withPrefix(key, 14)) {
+            for (i in wl.withPrefix(key, 40)) {
                 val extra = wl.keys[i].length - key.length
                 if (extra == 0) continue
                 offer(wl.words[i], wl.score[i] * weight - 0.55f * extra + 1.2f, -1f)
@@ -111,7 +118,7 @@ object Suggest {
         }
 
         // Słowa użytkownika – wyuczone z pisania.
-        for ((w, count) in UserModel.withPrefix(key, 8)) {
+        for ((w, count) in UserModel.withPrefix(key, 20)) {
             val extra = normalizeKey(w).length - key.length
             val s = 7f + ln(count + 1f) * 1.6f - 0.55f * extra
             if (extra == 0) typedValid = typedValid || (count >= 2 && w.equals(typed, ignoreCase = true))
@@ -136,7 +143,7 @@ object Suggest {
         var auto: Suggestion? = null
         val top = ranked.firstOrNull()
         // Forma ze słownika różni się tylko wielkością liter („i” → „I”, „warszawa” → „Warszawa”).
-        if (mode != Autocorrect.OFF && typedValid && top != null && top.word != typed && top.word.equals(typed, ignoreCase = true) &&
+        if (mode != Autocorrect.OFF && typedValid && !typedExactCase && top != null && top.word != typed && top.word.equals(typed, ignoreCase = true) &&
             top.word.any { it.isUpperCase() } && typed.none { it.isUpperCase() }
         ) {
             auto = Suggestion(top.word, SuggestionKind.WORD)
@@ -251,7 +258,7 @@ object Suggest {
         val wl = (listOfNotNull(active) + langs).firstNotNullOfOrNull { Dictionaries.get(it) }
         if (wl != null) {
             var i = 0
-            while (out.size < minOf(limit, 3) && i < wl.size && i < 200) {
+            while (out.size < limit && i < wl.size && i < 400) {
                 val w = wl.words[i++]
                 if (w.length < 2 && w.lowercase() !in ONE_LETTER) continue
                 if (!w.all { it.isLetter() } || UserModel.isBlocked(w) || w.equals(prev, ignoreCase = true)) continue
