@@ -845,7 +845,21 @@ class KeyboardController(val service: OpenKeyboardService) {
         get() = detectedLanguage?.takeIf { settings.autoLanguage && settings.multilingual && it in settings.languages } ?: settings.activeLanguage
 
     private fun computeSuggestions(typed: String, sentenceStart: Boolean = false): Suggestions {
-        val s = Suggest.suggest(typed, previousWordSafe, suggestLangs, primaryLanguage, settings.autocorrect, proximity)
+        var s = Suggest.suggest(typed, previousWordSafe, suggestLangs, primaryLanguage, settings.autocorrect, proximity)
+        // Przewidziane następne słowo nie znika po pierwszej literze – pasujące zostają na początku paska.
+        if (settings.nextWord && !incognito) {
+            val key = normalizeKey(typed)
+            // Wyuczone pary słów; najczęstsze słowa języka i tak wygrywają w zwykłym rankingu.
+            val preds = previousWordSafe?.let { UserModel.next(it, 30) }.orEmpty()
+                .map { it.first }
+                .filter { normalizeKey(it).startsWith(key) && normalizeKey(it) != key && !UserModel.isBlocked(it) }
+            if (preds.isNotEmpty()) {
+                val boosted = preds.take(3).map { Suggestion(Suggest.applyCase(typed, it), SuggestionKind.WORD) }
+                val rest = s.items.filter { i -> boosted.none { it.text.equals(i.text, ignoreCase = true) } }
+                val head = if (s.autoCorrect != null) rest.take(1) else emptyList()
+                s = s.copy(items = head + boosted + rest.drop(head.size))
+            }
+        }
         if (!settings.autoCapitalize || capsWord) return s
         // Początek zdania: podpowiedzi i autokorekta z wielkiej litery, nawet gdy pisano małą.
         fun fix(x: Suggestion): Suggestion {
