@@ -668,7 +668,7 @@ class KeyboardController(val service: OpenKeyboardService) {
         }
         // Wielkość liter: początek zdania, „HEllo”, angielskie dni i miesiące.
         if (autocorrect && settings.autoCapitalize && !capsWord && wordSuggestions && final == typed && !keepTyped) {
-            val fixed = SmartCase.fix(final, composingAtSentenceStart(), suggestLangs)
+            val fixed = SmartCase.fix(final, composingAtSentenceStart(), suggestLangs, primaryLanguage)
             if (fixed != final) {
                 final = fixed
                 lastCorrection = Triple(typed, final, separator)
@@ -843,7 +843,7 @@ class KeyboardController(val service: OpenKeyboardService) {
         // Początek zdania: podpowiedzi i autokorekta z wielkiej litery, nawet gdy pisano małą.
         fun fix(x: Suggestion): Suggestion {
             if (x.kind != SuggestionKind.WORD) return x
-            val t = SmartCase.fix(x.text, sentenceStart, suggestLangs)
+            val t = SmartCase.fix(x.text, sentenceStart, suggestLangs, primaryLanguage)
             return if (t == x.text) x else x.copy(text = t, display = t)
         }
         val auto = s.autoCorrect?.let(::fix)

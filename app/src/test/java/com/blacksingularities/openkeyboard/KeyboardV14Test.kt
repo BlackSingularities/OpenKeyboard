@@ -40,6 +40,11 @@ class KeyboardV14Test {
         assertEquals("Monday", SmartCase.fix("monday", false, listOf("pl", "en")))
         assertEquals("monday", SmartCase.fix("monday", false, listOf("pl")))
         assertEquals("I'm", SmartCase.fix("i'm", false, listOf("en")))
+        // Polskie jednoliterowe spójniki zostają małe, także przy włączonym angielskim.
+        assertEquals("i", SmartCase.fix("i", false, listOf("pl", "en"), "pl"))
+        assertEquals("w", SmartCase.fix("w", false, listOf("pl", "en"), "pl"))
+        assertEquals("I", SmartCase.fix("i", false, listOf("pl", "en"), "en"))
+        assertEquals("I", SmartCase.fix("i", false, listOf("en")))
     }
 
     @Test

@@ -56,6 +56,8 @@ object Suggest {
         if (key.isEmpty() || typed.any { it.isDigit() }) return Suggestions.Empty
         val cands = HashMap<String, Candidate>()
         var typedValid = false
+        // Wpisana forma istnieje dokładnie tak (np. polskie „i”) – nie zmieniaj jej na „I”.
+        var typedExactCase = false
 
         fun offer(word: String, score: Float, dist: Float) {
             if (UserModel.isBlocked(word)) return
@@ -64,6 +66,10 @@ object Suggest {
             if (c == null) {
                 cands[k] = Candidate(word, score, dist)
             } else {
+                if (dist == 0f && word == typed) {
+                    cands[k] = Candidate(word, maxOf(score, c.score), 0f)
+                    return
+                }
                 if (score > c.score) c.score = score
                 if (dist >= 0 && (c.dist < 0 || dist < c.dist)) c.dist = dist
             }
@@ -75,6 +81,7 @@ object Suggest {
             val exact = wl.indexOf(typed)
             if (exact >= 0) {
                 typedValid = true
+                if (wl.words[exact] == typed) typedExactCase = true
                 offer(wl.words[exact], wl.score[exact] * weight + 8f, 0f)
             }
             // Ten sam klucz bez znaków diakrytycznych („zolw” → „żółw”, „dont” → „don't”).
@@ -136,7 +143,7 @@ object Suggest {
         var auto: Suggestion? = null
         val top = ranked.firstOrNull()
         // Forma ze słownika różni się tylko wielkością liter („i” → „I”, „warszawa” → „Warszawa”).
-        if (mode != Autocorrect.OFF && typedValid && top != null && top.word != typed && top.word.equals(typed, ignoreCase = true) &&
+        if (mode != Autocorrect.OFF && typedValid && !typedExactCase && top != null && top.word != typed && top.word.equals(typed, ignoreCase = true) &&
             top.word.any { it.isUpperCase() } && typed.none { it.isUpperCase() }
         ) {
             auto = Suggestion(top.word, SuggestionKind.WORD)

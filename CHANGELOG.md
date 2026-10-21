@@ -5,6 +5,9 @@
 
 # Zmiany
 
+## 1.5.1
+- **Polskie jednoliterowe spójniki i przyimki** („i”, „w”, „z”, „a”, „o”, „u”) zostają małe – nie zmieniają się w angielskie „I”, gdy włączony jest też angielski.
+
 ## 1.5.0
 - **Najlepsza podpowiedź na środku paska** (jak w SwiftKey), bez separatorów i kropki – wyróżniona tylko pogrubieniem.
 - **Ikony nad klawiaturą wyśrodkowane.**
