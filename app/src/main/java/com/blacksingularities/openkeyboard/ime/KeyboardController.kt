@@ -158,7 +158,9 @@ class KeyboardController(val service: OpenKeyboardService) {
         incognito = settings.forceIncognito || fieldKind == FieldKind.PASSWORD || (settings.incognitoAuto && noLearning)
         ClipboardHistory.paused = incognito
         enterAction = if ((info.imeOptions and EditorInfo.IME_FLAG_NO_ENTER_ACTION) != 0) EditorInfo.IME_ACTION_NONE else info.imeOptions and EditorInfo.IME_MASK_ACTION
-        multiLine = cls == InputType.TYPE_CLASS_TEXT && (info.inputType and InputType.TYPE_TEXT_FLAG_MULTI_LINE) != 0
+        // Komunikatory (np. Snapchat) mają pole wielowierszowe, ale proszą o „Wyślij” – wtedy Enter wysyła.
+        multiLine = cls == InputType.TYPE_CLASS_TEXT && (info.inputType and InputType.TYPE_TEXT_FLAG_MULTI_LINE) != 0 &&
+            enterAction != EditorInfo.IME_ACTION_SEND
         if (!restarting) {
             mode = when (fieldKind) {
                 FieldKind.NUMBER -> KeyboardMode.NUMBER

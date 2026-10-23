@@ -68,7 +68,7 @@ private val symbolPopups = mapOf(
 private fun symbolKey(s: String) = Key(KeyType.CHAR, s, popup = symbolPopups[s]?.map { it.toString() } ?: emptyList())
 
 /** Okres wpisany kropką: znaki interpunkcji pod przytrzymaniem kropki. */
-private val periodPopup = listOf(",", "?", "!", "'", "\"", ":", ";", "-", "(", ")", "/", "@", "&", "#", "%", "…")
+private val periodPopup = listOf("?", "!", ",", "'", "\"", ":", ";", "-", "(", ")", "/", "@", "&", "#", "%", "…")
 
 object Layouts {
 
@@ -111,14 +111,14 @@ object Layouts {
         return KeyboardLayout(out, units, KeyboardMode.ALPHA)
     }
 
-    /** Klawisz litery: pierwsza opcja okienka przytrzymania to znak pokazany w rogu. */
+    /** Klawisz litery: pierwsza opcja okienka (pod palcem) to cyfra, a bez niej znak języka (np. Ł). */
     private fun letterKey(c: Char, lang: Lang, digit: String?, symbol: String?, hints: Boolean): Key {
         val primary = lang.accents[c].orEmpty()
         val generic = Languages.genericAccents[c].orEmpty().filter { it !in primary }
         val popup = buildList {
-            if (symbol != null) add(symbol)
             if (digit != null) add(digit)
             primary.forEach { add(it.toString()) }
+            if (symbol != null) add(symbol)
             // Ogólne znaki tylko dla alfabetu łacińskiego – w cyrylicy i greckim byłyby szumem.
             if (c in 'a'..'z') generic.forEach { add(it.toString()) }
         }.distinct()

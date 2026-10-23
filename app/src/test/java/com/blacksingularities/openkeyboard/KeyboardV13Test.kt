@@ -34,10 +34,13 @@ class KeyboardV13Test {
     fun symbolsOnLettersLikeSwiftKey() {
         val l = Layouts.build(KeyboardMode.ALPHA, pl, KeyboardSettings(symbolKeys = true), FieldKind.TEXT, 1)
         val keys = l.rows.flatten().filter { it.type == KeyType.CHAR }.associateBy { it.text }
-        assertEquals("%", keys.getValue("q").popup.first())
+        // Pod palcem najpierw cyfra, potem znak języka, dopiero dalej symbol.
+        assertEquals(listOf("1", "%"), keys.getValue("q").popup.take(2))
         assertEquals("%", keys.getValue("q").hint)
         assertEquals("1", keys.getValue("q").hint2)
-        assertEquals("@", keys.getValue("a").popup.first())
+        assertEquals("ą", keys.getValue("a").popup.first())
+        assertTrue("@" in keys.getValue("a").popup)
+        assertEquals("ł", keys.getValue("l").popup.first())
         assertTrue("ą" in keys.getValue("a").popup)
         assertEquals("ą", keys.getValue("a").hint2)
         assertEquals("/", keys.getValue("m").popup.first())

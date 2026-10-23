@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
@@ -87,9 +88,15 @@ const val DELETE_WORDS_AFTER = 0
 class KeyRect(val id: Int, val key: Key, val row: Int, val rect: Rect)
 
 /** Okienko z opcjami przytrzymanego klawisza. */
-class PopupState(val owner: Int, val options: List<String>, val cell: Float, val cellH: Float, val left: Float, val bottom: Float, val perRow: Int) {
+class PopupState(
+    val owner: Int, val options: List<String>, val cell: Float, val cellH: Float, val left: Float, val bottom: Float, val perRow: Int,
+    /** Opcje od prawej do lewej – dla klawiszy po prawej stronie, by pierwsza była pod palcem. */
+    val mirror: Boolean = false,
+) {
     var selected by mutableStateOf(0)
     val rows: Int get() = ceil(options.size / perRow.toFloat()).toInt()
+    /** Indeks opcji w danej kolumnie i rzędzie (licząc od dołu). */
+    fun indexAt(row: Int, col: Int): Int = row * perRow + if (mirror) perRow - 1 - col else col
 }
 
 /** Wysokość rzędu klawiszy (dp) wg ustawień i trybu. */
@@ -268,8 +275,14 @@ fun KeyGrid(
                 for (r in (pp.rows - 1) downTo 0) {
                     Row {
                         for (c in 0 until pp.perRow) {
-                            val i = r * pp.perRow + c
-                            if (i >= pp.options.size) break
+                            val i = pp.indexAt(r, c)
+                            if (i >= pp.options.size) {
+                                if (pp.mirror) {
+                                    Spacer(Modifier.size(cellDp - 4.dp / pp.perRow, cellH - 4.dp / pp.rows))
+                                    continue
+                                }
+                                break
+                            }
                             val sel = i == pp.selected
                             Box(
                                 Modifier
@@ -581,8 +594,11 @@ private class TouchTracker(
             val perRow = minOf(opts.size, 8)
             val total = cell * perRow
             val maxW = rects.maxOf { it.rect.right }
-            val left = (t.key.rect.center.x - cell / 2f).coerceAtMost(maxW - total).coerceAtLeast(0f)
-            onPopup(PopupState(t.key.id, opts, cell, rowH, left, t.key.rect.top - 4f * density, perRow))
+            // Pierwsza opcja zawsze nad palcem: po prawej stronie okienko rośnie w lewo.
+            val mirror = t.key.rect.center.x > maxW / 2f
+            val left = if (mirror) (t.key.rect.center.x + cell / 2f - total).coerceAtLeast(0f).coerceAtMost(maxW - total)
+            else (t.key.rect.center.x - cell / 2f).coerceAtMost(maxW - total).coerceAtLeast(0f)
+            onPopup(PopupState(t.key.id, opts, cell, rowH, left, t.key.rect.top - 4f * density, perRow, mirror))
             t.mode = TrackMode.POPUP
             update(null, false, null)
             a.long()
@@ -602,7 +618,7 @@ private class TouchTracker(
                 val pp = popupGetter() ?: return
                 val col = ((p.x - pp.left) / pp.cell).toInt().coerceIn(0, pp.perRow - 1)
                 val rowFromBottom = ((pp.bottom - p.y) / pp.cellH).toInt().coerceIn(0, pp.rows - 1)
-                val i = (rowFromBottom * pp.perRow + col).coerceAtMost(pp.options.size - 1)
+                val i = pp.indexAt(rowFromBottom, col).coerceAtMost(pp.options.size - 1)
                 if (i != pp.selected) {
                     pp.selected = i
                     a.tick()
