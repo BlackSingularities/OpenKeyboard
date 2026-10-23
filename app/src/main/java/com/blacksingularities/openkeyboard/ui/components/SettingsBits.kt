@@ -23,6 +23,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.layout.onGloballyPositioned
@@ -68,14 +69,22 @@ fun SectionHeader(icon: ImageVector, title: String, intro: String? = null) {
     }
 }
 
-/** Przełącznik ustawienia: ikona, nazwa i opis, co dokładnie robi. */
+/**
+ * Przełącznik ustawienia: ikona, nazwa i opis, co dokładnie robi. [enabled] = false – opcja
+ * nie ma teraz znaczenia (zależy od innej opcji); [requires] – zdanie, co trzeba zmienić, żeby działała.
+ */
 class Tile(
     val icon: ImageVector,
     val short: String,
     val full: String,
     val value: Boolean,
+    val enabled: Boolean = true,
+    val requires: String? = null,
     val onChange: (Boolean) -> Unit,
 )
+
+/** Ile przygaszona jest opcja, która teraz nie działa. */
+const val DISABLED_ALPHA = 0.38f
 
 /**
  * Lista przełączników z pełnymi opisami – każdy wiersz mówi wprost, co włącza.
@@ -94,7 +103,7 @@ fun TileGrid(tiles: List<Tile>) {
             Row(
                 Modifier
                     .fillMaxWidth()
-                    .reactive(null) { t.onChange(!t.value) }
+                    .then(if (t.enabled) Modifier.reactive(null) { t.onChange(!t.value) } else Modifier.alpha(DISABLED_ALPHA))
                     .padding(horizontal = 10.dp, vertical = 8.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
@@ -110,10 +119,12 @@ fun TileGrid(tiles: List<Tile>) {
                 Column(Modifier.weight(1f).padding(horizontal = 12.dp)) {
                     Text(t.short, fontSize = 14.sp, color = Color.White, fontWeight = FontWeight.Medium)
                     Text(t.full, fontSize = 11.sp, color = Palette.TextDim, lineHeight = 14.sp)
+                    if (!t.enabled) t.requires?.let { Text(it, fontSize = 11.sp, color = Palette.Amber, lineHeight = 14.sp) }
                 }
                 androidx.compose.material3.Switch(
                     checked = t.value,
                     onCheckedChange = { t.onChange(it) },
+                    enabled = t.enabled,
                     modifier = Modifier.scale(0.82f),
                     colors = androidx.compose.material3.SwitchDefaults.colors(checkedTrackColor = Palette.Amber, checkedThumbColor = Palette.Ink),
                 )
@@ -134,17 +145,21 @@ fun SliderRow(
     range: IntRange,
     step: Int = 1,
     format: (Int) -> String = { it.toString() },
+    enabled: Boolean = true,
+    requires: String? = null,
     onChange: (Int) -> Unit,
 ) {
     var local by remember(value) { mutableFloatStateOf(value.toFloat()) }
-    Column(Modifier.fillMaxWidth().padding(horizontal = 10.dp, vertical = 4.dp)) {
+    Column(Modifier.fillMaxWidth().then(if (enabled) Modifier else Modifier.alpha(DISABLED_ALPHA)).padding(horizontal = 10.dp, vertical = 4.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             RowIcon(icon)
             Text(title, fontSize = 13.sp, modifier = Modifier.weight(1f).padding(horizontal = 12.dp))
             Text(format(snap(local, range, step)), fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = Color.White)
         }
+        if (!enabled) requires?.let { Text(it, fontSize = 11.sp, color = Palette.Amber, modifier = Modifier.padding(start = 40.dp)) }
         Slider(
             value = local,
+            enabled = enabled,
             onValueChange = { local = it },
             onValueChangeFinished = { onChange(snap(local, range, step)) },
             valueRange = range.first.toFloat()..range.last.toFloat(),
