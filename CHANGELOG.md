@@ -1,5 +1,9 @@
 # Zmiany
 
+## 1.6.1
+- **Ustawienia bez martwych opcji**: opcje, które w danej chwili nic nie zmieniają, są przygaszone i nieaktywne, z podpisem, co je włącza – np. rodzaj i głośność dźwięku przy wyłączonym dźwięku, siła wibracji bez wibracji, autokorekta i podpowiedzi emoji bez podpowiedzi, ślad gestu bez pisania gestem, pojemność schowka bez historii, szerokości trybu jednej ręki i klawiatury pływającej, przerwa klawiatury dzielonej, klawisz i gest zmiany języka, gdy nie ma czego przełączać, opcje nauki przy „Zawsze incognito”, przytrzymanie przecinka bez klawisza przecinka.
+- Wybór rodzaju dźwięku nie włącza już dźwięku sam z siebie.
+
 ## 1.6.0
 - **Wiele języków naraz bez przełączania**: język, w którym piszesz, rozpoznaje się sam – z ostatnich słów, z tekstu, który już jest w polu, a w nowym polu z ostatniego języka w danej aplikacji. Od niego zależą podpowiedzi, cudzysłowy, daty, przelicznik jednostek i dyktowanie (na Androidzie 14+ usługa mowy sama przełącza się między włączonymi językami).
 - **Jeden układ dla języków o tym samym alfabecie**: pod przytrzymaniem są znaki wszystkich włączonych języków (np. ą i ä na „a”), klawisz i gest zmiany języka przełączają już tylko między alfabetami (łacinka ↔ cyrylica), a spacja pokazuje języki działające razem.

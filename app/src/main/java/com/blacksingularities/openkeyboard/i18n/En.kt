@@ -595,4 +595,11 @@ internal val En: Map<String, String> = hashMapOf(
     "Więcej symboli" to "More symbols",
     "Litery" to "Letters",
     "Zmień język" to "Switch language",
+    // opcje zależne od innych
+    "Działa po włączeniu: {0}" to "Works when this is on: {0}",
+    "Działa przy co najmniej dwóch językach" to "Works with at least two languages",
+    "Dźwięk przy naciśnięciu klawisza – rodzaj i głośność wybierzesz niżej" to "Sound on key press – choose the type and volume below",
+    "Nie działa przy „Zawsze incognito”" to "Doesn't work with “Always incognito”",
+    "W trybie „Wiele naraz” działa tylko z językiem o innym alfabecie (np. rosyjskim)" to "In multilingual mode it only works with a language in another alphabet (e.g. Russian)",
+    "„Zawsze incognito” obejmuje już wszystkie pola" to "“Always incognito” already covers every field",
 )

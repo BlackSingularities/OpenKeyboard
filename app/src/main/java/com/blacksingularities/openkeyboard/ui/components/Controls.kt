@@ -246,17 +246,19 @@ fun <T> CompactChoice(
     icon: ((T) -> ImageVector)? = null,
     short: (T) -> String = label,
     hint: String? = null,
+    enabled: Boolean = true,
+    requires: String? = null,
     onSelect: (T) -> Unit,
 ) {
     Row(
-        Modifier.fillMaxWidth().padding(horizontal = 10.dp, vertical = 6.dp),
+        Modifier.fillMaxWidth().then(if (enabled) Modifier else Modifier.alpha(DISABLED_ALPHA)).padding(horizontal = 10.dp, vertical = 6.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         RowIcon(rowIcon)
         Column(Modifier.weight(1f).padding(horizontal = 10.dp)) {
             Text(title, fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
             Text(
-                hint?.let { "${label(selected)} · $it" } ?: label(selected),
+                (if (enabled) null else requires) ?: hint?.let { "${label(selected)} · $it" } ?: label(selected),
                 fontSize = 10.sp,
                 lineHeight = 12.sp,
                 color = Palette.TextDim,
@@ -276,7 +278,7 @@ fun <T> CompactChoice(
                     Modifier
                         .clip(RoundedCornerShape(50))
                         .background(if (sel) Color.White else Color.Transparent)
-                        .selectable(selected = sel, role = Role.RadioButton, onClick = { onSelect(o) })
+                        .selectable(selected = sel, enabled = enabled, role = Role.RadioButton, onClick = { onSelect(o) })
                         .padding(horizontal = if (icon != null) 10.dp else 9.dp, vertical = 5.dp),
                     contentAlignment = Alignment.Center,
                 ) {

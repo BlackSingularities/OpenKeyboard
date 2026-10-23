@@ -59,6 +59,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Color
@@ -93,6 +94,7 @@ import com.blacksingularities.openkeyboard.keyboard.KeyboardThemes
 import com.blacksingularities.openkeyboard.keyboard.Layouts
 import com.blacksingularities.openkeyboard.ui.components.ActionRow
 import com.blacksingularities.openkeyboard.ui.components.CompactChoice
+import com.blacksingularities.openkeyboard.ui.components.DISABLED_ALPHA
 import com.blacksingularities.openkeyboard.ui.components.DarkField
 import com.blacksingularities.openkeyboard.ui.components.Group
 import com.blacksingularities.openkeyboard.ui.components.Panel
@@ -612,21 +614,23 @@ private fun GestureRow(
     title: String,
     value: GestureAction,
     options: List<GestureAction>,
+    enabled: Boolean = true,
+    requires: String? = null,
     onPick: (GestureAction) -> Unit,
 ) {
-    Column(Modifier.fillMaxWidth().padding(horizontal = 10.dp, vertical = 6.dp)) {
+    Column(Modifier.fillMaxWidth().then(if (enabled) Modifier else Modifier.alpha(DISABLED_ALPHA)).padding(horizontal = 10.dp, vertical = 6.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             RowIcon(icon)
             Column(Modifier.padding(horizontal = 12.dp)) {
                 Text(title, fontSize = 14.sp)
-                Text(gestureName(value), fontSize = 11.sp, color = Palette.TextDim)
+                Text((if (enabled) null else requires) ?: gestureName(value), fontSize = 11.sp, color = if (enabled) Palette.TextDim else Palette.Amber)
             }
         }
         Row(
             Modifier.padding(start = 44.dp, top = 6.dp).horizontalScroll(rememberScrollState()),
             horizontalArrangement = Arrangement.spacedBy(5.dp),
         ) {
-            for (o in options) Chip(gestureName(o), o == value) { onPick(o) }
+            for (o in options) Chip(gestureName(o), o == value) { if (enabled) onPick(o) }
         }
     }
 }
@@ -649,7 +653,7 @@ fun GesturesSheet(vm: AppViewModel) {
             GestureRow(Icons.Rounded.Tune, tr("Spacja – przytrzymanie"), s.spaceLongPress, all) { v -> vm.update { it.copy(spaceLongPress = v) } }
             GestureRow(Icons.Rounded.KeyboardArrowDown, tr("Przeciągnięcie w dół po klawiszach"), s.swipeDown, all) { v -> vm.update { it.copy(swipeDown = v) } }
             GestureRow(Icons.Rounded.EmojiEmotions, tr("Enter – przytrzymanie"), s.enterLongPress, all) { v -> vm.update { it.copy(enterLongPress = v) } }
-            GestureRow(Icons.Rounded.Add, tr("Przecinek – przytrzymanie"), s.commaLongPress, all) { v -> vm.update { it.copy(commaLongPress = v) } }
+            GestureRow(Icons.Rounded.Add, tr("Przecinek – przytrzymanie"), s.commaLongPress, all, enabled = s.commaKey, requires = tr("Działa po włączeniu: {0}", tr("Przecinek"))) { v -> vm.update { it.copy(commaLongPress = v) } }
         }
         Text(
             tr("Przytrzymanie przecinka ustawione na „Nic” pokazuje znaki ; : „ ”. Przytrzymaną spację możesz też przesunąć w bok, aby zmienić język (opcja w sekcji Języki)."),

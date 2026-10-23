@@ -325,6 +325,14 @@ private fun ColumnScope.SettingsContent(vm: AppViewModel) {
     val sys = LocalSystem.current
     fun set(t: (KeyboardSettings) -> KeyboardSettings) = vm.update(t)
     var confirm by remember { mutableStateOf<Pair<String, () -> Unit>?>(null) }
+    // Opcje, które teraz nic nie zmieniają, są przygaszone – z wyjaśnieniem, co je włącza.
+    fun needs(name: String) = tr("Działa po włączeniu: {0}", name)
+    val incognitoNote = tr("Nie działa przy „Zawsze incognito”")
+    val manyLanguages = s.languages.size > 1
+    val switchable = Languages.switchTargets(s.languages, s.activeLanguage, s.multilingual).size > 1
+    val switchNote = if (!manyLanguages) tr("Działa przy co najmniej dwóch językach") else tr("W trybie „Wiele naraz” działa tylko z językiem o innym alfabecie (np. rosyjskim)")
+    val suggestNote = needs(tr("Podpowiedzi"))
+    val learns = s.learnWords && !s.forceIncognito
 
     SectionHeader(Icons.Rounded.Language, tr("Języki"), tr("W jakich językach piszesz. Podpowiedzi mogą działać we wszystkich naraz – bez przełączania klawiatury."))
     Group(null) {
@@ -336,11 +344,11 @@ private fun ColumnScope.SettingsContent(vm: AppViewModel) {
     }
     TileGrid(
         listOf(
-            Tile(Icons.Rounded.Translate, tr("Wiele naraz"), tr("Podpowiedzi i autokorekta ze wszystkich włączonych języków jednocześnie – bez przełączania"), s.multilingual) { v -> set { it.copy(multilingual = v) } },
-            Tile(Icons.Rounded.Language, tr("Klawisz języka"), tr("Przycisk globusa obok spacji (gdy jest kilka języków)"), s.languageKey) { v -> set { it.copy(languageKey = v) } },
+            Tile(Icons.Rounded.Translate, tr("Wiele naraz"), tr("Podpowiedzi i autokorekta ze wszystkich włączonych języków jednocześnie – bez przełączania"), s.multilingual, enabled = manyLanguages, requires = tr("Działa przy co najmniej dwóch językach")) { v -> set { it.copy(multilingual = v) } },
+            Tile(Icons.Rounded.Language, tr("Klawisz języka"), tr("Przycisk globusa obok spacji (gdy jest kilka języków)"), s.languageKey, enabled = switchable, requires = switchNote) { v -> set { it.copy(languageKey = v) } },
             Tile(Icons.Rounded.SpaceBar, tr("Język na spacji"), tr("Nazwa bieżącego języka na klawiszu spacji"), s.showSpaceLanguage) { v -> set { it.copy(showSpaceLanguage = v) } },
-            Tile(Icons.Rounded.Psychology, tr("Wykrywaj język"), tr("Klawiatura rozpoznaje, w jakim języku właśnie piszesz, i jego słowom daje pierwszeństwo"), s.autoLanguage) { v -> set { it.copy(autoLanguage = v) } },
-            Tile(Icons.Rounded.SwapHoriz, tr("Spacja zmienia język"), tr("Przytrzymaj spację i przesuń w bok – następny lub poprzedni język. Zwykłe przesunięcie spacji przesuwa kursor"), s.spaceSlideLanguage) { v -> set { it.copy(spaceSlideLanguage = v) } },
+            Tile(Icons.Rounded.Psychology, tr("Wykrywaj język"), tr("Klawiatura rozpoznaje, w jakim języku właśnie piszesz, i jego słowom daje pierwszeństwo"), s.autoLanguage, enabled = manyLanguages && s.multilingual, requires = if (manyLanguages) needs(tr("Wiele naraz")) else tr("Działa przy co najmniej dwóch językach")) { v -> set { it.copy(autoLanguage = v) } },
+            Tile(Icons.Rounded.SwapHoriz, tr("Spacja zmienia język"), tr("Przytrzymaj spację i przesuń w bok – następny lub poprzedni język. Zwykłe przesunięcie spacji przesuwa kursor"), s.spaceSlideLanguage, enabled = switchable, requires = switchNote) { v -> set { it.copy(spaceSlideLanguage = v) } },
         ),
     )
 
@@ -360,16 +368,26 @@ private fun ColumnScope.SettingsContent(vm: AppViewModel) {
                 }
             },
             short = { when (it) { Autocorrect.OFF -> tr("Wył."); Autocorrect.GENTLE -> "1"; Autocorrect.NORMAL -> "2"; Autocorrect.AGGRESSIVE -> "3" } },
+            enabled = s.suggestions,
+            requires = suggestNote,
         ) { v -> set { it.copy(autocorrect = v) } }
     }
     TileGrid(
         listOf(
             Tile(Icons.Rounded.Spellcheck, tr("Podpowiedzi"), tr("Pasek z podpowiedziami słów nad klawiaturą"), s.suggestions) { v -> set { it.copy(suggestions = v) } },
-            Tile(Icons.Rounded.Psychology, tr("Następne słowo"), tr("Przewidywanie kolejnego słowa na podstawie Twojego pisania"), s.nextWord) { v -> set { it.copy(nextWord = v) } },
-            Tile(Icons.AutoMirrored.Rounded.MenuBook, tr("Ucz się"), tr("Zapamiętywanie nowych słów i par słów (lokalnie, na telefonie)"), s.learnWords) { v -> set { it.copy(learnWords = v) } },
+            Tile(Icons.Rounded.Psychology, tr("Następne słowo"), tr("Przewidywanie kolejnego słowa na podstawie Twojego pisania"), s.nextWord, enabled = s.suggestions, requires = suggestNote) { v -> set { it.copy(nextWord = v) } },
+            Tile(Icons.AutoMirrored.Rounded.MenuBook, tr("Ucz się"), tr("Zapamiętywanie nowych słów i par słów (lokalnie, na telefonie)"), s.learnWords, enabled = !s.forceIncognito, requires = incognitoNote) { v -> set { it.copy(learnWords = v) } },
             Tile(Icons.Rounded.Gesture, tr("Pisanie gestem"), tr("Przeciągnij palcem po literach słowa bez odrywania – klawiatura odgadnie słowo"), s.glideTyping) { v -> set { it.copy(glideTyping = v) } },
-            Tile(Icons.Rounded.Draw, tr("Ślad gestu"), tr("Rysowanie śladu palca podczas pisania gestem"), s.glideTrail) { v -> set { it.copy(glideTrail = v) } },
-            Tile(Icons.AutoMirrored.Rounded.Undo, tr("Ucz się z cofnięć"), tr("Poprawka cofnięta Backspace'em nie wraca, a wpisane słowo trafia do słownika"), s.learnFromUndo) { v -> set { it.copy(learnFromUndo = v) } },
+            Tile(Icons.Rounded.Draw, tr("Ślad gestu"), tr("Rysowanie śladu palca podczas pisania gestem"), s.glideTrail, enabled = s.glideTyping, requires = needs(tr("Pisanie gestem"))) { v -> set { it.copy(glideTrail = v) } },
+            Tile(Icons.AutoMirrored.Rounded.Undo, tr("Ucz się z cofnięć"), tr("Poprawka cofnięta Backspace'em nie wraca, a wpisane słowo trafia do słownika"), s.learnFromUndo,
+                enabled = learns && s.suggestions && s.autocorrect != Autocorrect.OFF,
+                requires = when {
+                    s.forceIncognito -> incognitoNote
+                    !s.suggestions -> suggestNote
+                    s.autocorrect == Autocorrect.OFF -> needs(tr("Autokorekta"))
+                    else -> needs(tr("Ucz się"))
+                },
+            ) { v -> set { it.copy(learnFromUndo = v) } },
             Tile(Icons.Rounded.FormatQuote, tr("Cudzysłowy „”"), tr("Typograficzne cudzysłowy zależne od języka zamiast prostych"), s.smartQuotes) { v -> set { it.copy(smartQuotes = v) } },
             Tile(Icons.Rounded.SpaceBar, tr("Spacja po , ! ?"), tr("Spacja dodawana automatycznie, gdy po przecinku, wykrzykniku lub pytajniku od razu piszesz dalej"), s.autoSpaceAfterPunct) { v -> set { it.copy(autoSpaceAfterPunct = v) } },
             Tile(Icons.Rounded.KeyboardCapslock, tr("Wielka litera"), tr("Wielka litera na początku zdania – także w podpowiedziach i autokorekcie; poprawia „HEllo” na „Hello” i angielskie dni i miesiące"), s.autoCapitalize) { v -> set { it.copy(autoCapitalize = v) } },
@@ -379,12 +397,15 @@ private fun ColumnScope.SettingsContent(vm: AppViewModel) {
             Tile(Icons.Rounded.Calculate, tr("Przelicz jednostki"), tr("Wynik w pasku po wpisaniu np. 5 km, 20°C, 3 kg, 60 mph"), s.unitConvert) { v -> set { it.copy(unitConvert = v) } },
             Tile(Icons.Rounded.SpaceBar, tr("Kropka 2× spacja"), tr("Dwukrotne naciśnięcie spacji wstawia kropkę i spację"), s.doubleSpacePeriod) { v -> set { it.copy(doubleSpacePeriod = v) } },
             Tile(Icons.Rounded.AutoFixHigh, tr("Interpunkcja"), tr("Kropka, przecinek, ! i ? po wybranym słowie trafiają za słowo, a spacja za znak"), s.smartPunctuation) { v -> set { it.copy(smartPunctuation = v) } },
-            Tile(Icons.Rounded.EmojiEmotions, tr("Emoji w pasku"), tr("Podpowiadanie emoji do słów (np. „kot” → 🐱)"), s.emojiSuggestions) { v -> set { it.copy(emojiSuggestions = v) } },
+            Tile(Icons.Rounded.EmojiEmotions, tr("Emoji w pasku"), tr("Podpowiadanie emoji do słów (np. „kot” → 🐱)"), s.emojiSuggestions, enabled = s.suggestions, requires = suggestNote) { v -> set { it.copy(emojiSuggestions = v) } },
             Tile(Icons.Rounded.Calculate, tr("Kalkulator"), tr("Wynik działania w pasku: wpisz np. 12*7+3"), s.inlineCalc) { v -> set { it.copy(inlineCalc = v) } },
             Tile(Icons.AutoMirrored.Rounded.Shortcut, tr("Skróty"), tr("Rozwijanie skrótów tekstowych (np. „pzdr” → „Pozdrawiam”); w treści działają {data}, {godzina}, {dzień}, {schowek} i {kursor}"), s.shortcuts) { v -> set { it.copy(shortcuts = v) } },
-            Tile(Icons.Rounded.OpenWith, tr("Popraw słowo"), tr("Kursor postawiony na końcu słowa pokazuje dla niego podpowiedzi"), s.reSuggest) { v -> set { it.copy(reSuggest = v) } },
-            Tile(Icons.Rounded.Block, tr("Bez podpowiedzi, gdy aplikacja prosi"), tr("Niektóre aplikacje (np. Duolingo) wyłączają słownik – domyślnie klawiatura podpowiada mimo to"), s.honorNoSuggestions) { v -> set { it.copy(honorNoSuggestions = v) } },
-            Tile(Icons.Rounded.ContentPaste, tr("Wklej z paska"), tr("Świeżo skopiowany tekst pojawia się w pasku do wklejenia"), s.clipboardSuggestion) { v -> set { it.copy(clipboardSuggestion = v) } },
+            Tile(Icons.Rounded.OpenWith, tr("Popraw słowo"), tr("Kursor postawiony na końcu słowa pokazuje dla niego podpowiedzi"), s.reSuggest, enabled = s.suggestions, requires = suggestNote) { v -> set { it.copy(reSuggest = v) } },
+            Tile(Icons.Rounded.Block, tr("Bez podpowiedzi, gdy aplikacja prosi"), tr("Niektóre aplikacje (np. Duolingo) wyłączają słownik – domyślnie klawiatura podpowiada mimo to"), s.honorNoSuggestions, enabled = s.suggestions, requires = suggestNote) { v -> set { it.copy(honorNoSuggestions = v) } },
+            Tile(Icons.Rounded.ContentPaste, tr("Wklej z paska"), tr("Świeżo skopiowany tekst pojawia się w pasku do wklejenia"), s.clipboardSuggestion,
+                enabled = s.clipboardHistory && !s.forceIncognito,
+                requires = if (s.forceIncognito) incognitoNote else needs(tr("Historia schowka")),
+            ) { v -> set { it.copy(clipboardSuggestion = v) } },
         ),
     )
     Group(null) {
@@ -431,7 +452,7 @@ private fun ColumnScope.SettingsContent(vm: AppViewModel) {
             { when (it) { SplitMode.OFF -> tr("Nigdy"); SplitMode.LANDSCAPE -> tr("W poziomie"); SplitMode.ALWAYS -> tr("Zawsze") } },
             short = { when (it) { SplitMode.OFF -> tr("Wył."); SplitMode.LANDSCAPE -> tr("Poziom"); SplitMode.ALWAYS -> tr("Zawsze") } },
         ) { v -> set { it.copy(split = v) } }
-        SliderRow(Icons.Rounded.VerticalSplit, tr("Przerwa w środku"), s.splitGap, 5..50, 1, { "${it / 10f}" }) { v -> set { it.copy(splitGap = v) } }
+        SliderRow(Icons.Rounded.VerticalSplit, tr("Przerwa w środku"), s.splitGap, 5..50, 1, { "${it / 10f}" }, enabled = s.split != SplitMode.OFF, requires = needs(tr("Klawiatura dzielona"))) { v -> set { it.copy(splitGap = v) } }
     }
     TileGrid(
         listOf(
@@ -490,8 +511,8 @@ private fun ColumnScope.SettingsContent(vm: AppViewModel) {
             short = { when (it) { NavSpace.AUTO -> "Auto"; NavSpace.SYSTEM -> tr("Pełne"); NavSpace.NONE -> tr("Brak") } },
         ) { v -> set { it.copy(navSpace = v) } }
         SliderRow(Icons.Rounded.Height, tr("Wysokość klawiszy"), s.keyHeight, 70..140, 5, { "$it%" }) { v -> set { it.copy(keyHeight = v) } }
-        SliderRow(Icons.Rounded.SwapHoriz, tr("Szerokość w trybie jednej ręki"), s.oneHandedWidth, 60..95, 1, { "$it%" }) { v -> set { it.copy(oneHandedWidth = v) } }
-        SliderRow(Icons.Rounded.PictureInPicture, tr("Szerokość klawiatury pływającej"), s.floatingScale, 55..100, 1, { "$it%" }) { v -> set { it.copy(floatingScale = v) } }
+        SliderRow(Icons.Rounded.SwapHoriz, tr("Szerokość w trybie jednej ręki"), s.oneHandedWidth, 60..95, 1, { "$it%" }, enabled = s.oneHanded != OneHanded.OFF, requires = needs(tr("Tryb jednej ręki"))) { v -> set { it.copy(oneHandedWidth = v) } }
+        SliderRow(Icons.Rounded.PictureInPicture, tr("Szerokość klawiatury pływającej"), s.floatingScale, 55..100, 1, { "$it%" }, enabled = s.floating, requires = needs(tr("Pływająca"))) { v -> set { it.copy(floatingScale = v) } }
         SliderRow(Icons.Rounded.KeyboardHide, tr("Odstęp od dołu ekranu"), s.bottomPadding, 0..40, 1, { "$it dp" }) { v -> set { it.copy(bottomPadding = v) } }
         SliderRow(Icons.Rounded.Timer, tr("Czas przytrzymania"), s.longPressMs, 150..700, 10, { "$it ms" }) { v -> set { it.copy(longPressMs = v) } }
     }
@@ -500,7 +521,7 @@ private fun ColumnScope.SettingsContent(vm: AppViewModel) {
     TileGrid(
         listOf(
             Tile(Icons.Rounded.Vibration, tr("Wibracja"), tr("Delikatna wibracja przy każdym klawiszu"), s.haptics) { v -> set { it.copy(haptics = v) } },
-            Tile(Icons.Rounded.VolumeUp, tr("Dźwięk"), tr("Dźwięk przy naciśnięciu klawisza – rodzaj wybierzesz niżej"), s.sound) { v -> set { it.copy(sound = v) } },
+            Tile(Icons.Rounded.VolumeUp, tr("Dźwięk"), tr("Dźwięk przy naciśnięciu klawisza – rodzaj i głośność wybierzesz niżej"), s.sound) { v -> set { it.copy(sound = v) } },
             Tile(Icons.AutoMirrored.Rounded.Backspace, tr("Usuwanie gestem"), tr("Przesuń palec w lewo z Backspace, aby zaznaczyć i usunąć całe słowa"), s.deleteSwipe) { v -> set { it.copy(deleteSwipe = v) } },
             Tile(Icons.AutoMirrored.Rounded.Backspace, tr("Backspace usuwa słowa"), tr("Przytrzymany Backspace kasuje całe słowa zamiast pojedynczych liter"), s.deleteWordsOnHold) { v -> set { it.copy(deleteWordsOnHold = v) } },
 
@@ -508,8 +529,8 @@ private fun ColumnScope.SettingsContent(vm: AppViewModel) {
     )
     Group(null) {
         ActionRow(Icons.Rounded.Gesture, tr("Gesty"), tr("Spacja w bok i w górę, przytrzymania, przeciągnięcie w dół – przypisz własne czynności")) { vm.sheet = Sheet.GESTURES }
-        SliderRow(Icons.Rounded.Vibration, tr("Siła wibracji"), s.hapticStrength, 1..100, 1, { "$it%" }) { v -> set { it.copy(hapticStrength = v) } }
-        SliderRow(Icons.Rounded.VolumeUp, tr("Głośność klawiszy"), s.soundVolume, 1..100, 1, { "$it%" }) { v -> set { it.copy(soundVolume = v) } }
+        SliderRow(Icons.Rounded.Vibration, tr("Siła wibracji"), s.hapticStrength, 1..100, 1, { "$it%" }, enabled = s.haptics, requires = needs(tr("Wibracja"))) { v -> set { it.copy(hapticStrength = v) } }
+        SliderRow(Icons.Rounded.VolumeUp, tr("Głośność klawiszy"), s.soundVolume, 1..100, 1, { "$it%" }, enabled = s.sound, requires = needs(tr("Dźwięk"))) { v -> set { it.copy(soundVolume = v) } }
         CompactChoice(
             Icons.Rounded.VolumeUp,
             tr("Rodzaj dźwięku"),
@@ -525,7 +546,9 @@ private fun ColumnScope.SettingsContent(vm: AppViewModel) {
                 }
             },
             short = { when (it) { KeySound.SYSTEM -> "Sys"; KeySound.CLICK -> "Klik"; KeySound.SOFT -> tr("Miękki"); KeySound.TYPEWRITER -> "⌨"; KeySound.BUBBLE -> "○" } },
-        ) { v -> set { it.copy(keySound = v, sound = true) } }
+            enabled = s.sound,
+            requires = needs(tr("Dźwięk")),
+        ) { v -> set { it.copy(keySound = v) } }
     }
 
     SectionHeader(Icons.Rounded.Widgets, tr("Narzędzia"), tr("Pasek narzędzi nad klawiszami, schowek i prywatność."))
@@ -535,13 +558,13 @@ private fun ColumnScope.SettingsContent(vm: AppViewModel) {
     TileGrid(
         listOf(
             Tile(Icons.Rounded.ContentPaste, tr("Historia schowka"), tr("Zapamiętywanie skopiowanych tekstów (dane poufne są pomijane)"), s.clipboardHistory) { v -> set { it.copy(clipboardHistory = v) } },
-            Tile(Icons.Rounded.VisibilityOff, tr("Auto-incognito"), tr("Bez nauki i historii w polach haseł i w trybie prywatnym przeglądarek"), s.incognitoAuto) { v -> set { it.copy(incognitoAuto = v) } },
+            Tile(Icons.Rounded.VisibilityOff, tr("Auto-incognito"), tr("Bez nauki i historii w polach haseł i w trybie prywatnym przeglądarek"), s.incognitoAuto, enabled = !s.forceIncognito, requires = tr("„Zawsze incognito” obejmuje już wszystkie pola")) { v -> set { it.copy(incognitoAuto = v) } },
             Tile(Icons.Rounded.VisibilityOff, tr("Zawsze incognito"), tr("Klawiatura niczego nie zapamiętuje"), s.forceIncognito) { v -> set { it.copy(forceIncognito = v) } },
         ),
     )
     VoiceGroup(vm)
     Group(null) {
-        SliderRow(Icons.Rounded.ContentPaste, tr("Pojemność historii schowka"), s.clipboardSize, 10..200, 10) { v -> set { it.copy(clipboardSize = v) } }
+        SliderRow(Icons.Rounded.ContentPaste, tr("Pojemność historii schowka"), s.clipboardSize, 10..200, 10, enabled = s.clipboardHistory, requires = needs(tr("Historia schowka"))) { v -> set { it.copy(clipboardSize = v) } }
         ActionRow(Icons.Rounded.DeleteSweep, tr("Wyczyść historię schowka"), tr("Przypięte wpisy zostaną"), danger = true) {
             confirm = tr("Wyczyścić historię schowka?") to { ClipboardHistory.clear() }
         }
