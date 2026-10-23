@@ -44,7 +44,8 @@ enum class SplitMode { OFF, LANDSCAPE, ALWAYS }
 
 @Serializable
 data class KeyboardSettings(
-    // Języki pisania: kolejność = kolejność przełączania; [activeLanguage] – bieżący układ.
+    // Języki pisania: kolejność = kolejność przełączania; [activeLanguage] – bieżący układ
+    // (w trybie „wiele naraz” wspólny dla wszystkich języków o tym samym alfabecie).
     val languages: List<String> = listOf("pl", "en"),
     val activeLanguage: String = "pl",
     /** Podpowiedzi i autokorekta ze wszystkich włączonych języków naraz. */
@@ -85,6 +86,11 @@ data class KeyboardSettings(
     val inlineCalc: Boolean = true,
     val shortcuts: Boolean = true,
     val reSuggest: Boolean = true,
+    /**
+     * Słuchaj aplikacji, które proszą o brak podpowiedzi (np. Duolingo). Domyślnie nie – słownik
+     * działa zawsze, poza prawdziwymi polami haseł.
+     */
+    val honorNoSuggestions: Boolean = false,
     val clipboardSuggestion: Boolean = true,
     val incognitoAuto: Boolean = true,
     val forceIncognito: Boolean = false,
@@ -185,7 +191,14 @@ object Prefs {
     fun init(context: Context) {
         appContext = context.applicationContext
         val raw = prefs().getString(KEY, null)
-        state.value = raw?.let { runCatching { decode(it) }.getOrNull() } ?: KeyboardSettings()
+        state.value = raw?.let { runCatching { decode(it) }.getOrNull() } ?: firstRun()
+    }
+
+    /** Pierwsze uruchomienie: języki pisania wg języków systemu. */
+    private fun firstRun(): KeyboardSettings {
+        val system = android.os.LocaleList.getDefault().let { l -> List(l.size()) { l[it].language } }
+        val langs = Languages.fromSystem(system)
+        return KeyboardSettings(languages = langs, activeLanguage = langs.first())
     }
 
     private fun prefs() = appContext.getSharedPreferences(FILE, Context.MODE_PRIVATE)
@@ -210,5 +223,5 @@ object Prefs {
         update { s }
     }
 
-    fun reset() = update { KeyboardSettings(onboardingDone = it.onboardingDone) }
+    fun reset() = update { firstRun().copy(onboardingDone = it.onboardingDone) }
 }

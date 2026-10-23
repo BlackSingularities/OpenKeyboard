@@ -41,6 +41,13 @@ private class Candidate(val word: String, var score: Float, var dist: Float)
 /** Ile podpowiedzi liczyć do przewijanego paska – tyle, ile silnik uzna za sensowne. */
 const val MAX_SUGGESTIONS = 50
 
+/** Forma z ogonkami ≥ 4× częstsza – idzie pierwsza w podpowiedziach. */
+private val PREFERRED_GAP = ln(4f)
+/** Forma z ogonkami ≥ 25× częstsza (w słowie od 5 liter) – wpisane to błąd, poprawiamy. */
+private val MISSPELLED_GAP = ln(25f)
+/** Słowo o literówkę dalej ≥ 1000× częstsze – wpisane to literówka z korpusu. */
+private val TYPO_GAP = ln(1000f)
+
 object Suggest {
 
     fun suggest(
@@ -51,6 +58,8 @@ object Suggest {
         mode: Autocorrect,
         proximity: Proximity,
         limit: Int = MAX_SUGGESTIONS,
+        prev2: String? = null,
+        field: FieldContext = FieldContext.Empty,
     ): Suggestions {
         val key = normalizeKey(typed)
         if (key.isEmpty() || typed.any { it.isDigit() }) return Suggestions.Empty
@@ -58,6 +67,8 @@ object Suggest {
         var typedValid = false
         // Wpisana forma istnieje dokładnie tak (np. polskie „i”) – nie zmieniaj jej na „I”.
         var typedExactCase = false
+        // Wpisane jest w słowniku, ale to znany błąd („prosze”, „teh”) – nie liczy się jako poprawne.
+        var knownMisspelling = false
 
         fun offer(word: String, score: Float, dist: Float) {
             if (UserModel.isBlocked(word)) return
@@ -79,14 +90,15 @@ object Suggest {
             val wl = Dictionaries.get(lang) ?: continue
             val weight = if (lang == active) 1f else 0.88f
             val exact = wl.indexOf(typed)
-            if (exact >= 0) {
-                typedValid = true
-                if (wl.words[exact] == typed) typedExactCase = true
-                offer(wl.words[exact], wl.score[exact] * weight + 8f, 0f)
-            }
             // Ten sam klucz bez znaków diakrytycznych („zolw” → „żółw”, „dont” → „don't”).
             val same = wl.bestForKey(key)
-            if (same >= 0 && same != exact) offer(wl.words[same], wl.score[same] * weight + 6.5f, 0.05f)
+            // Słowniki z napisów filmowych są pełne form bez ogonków („prosze”, „dzien”). Gdy forma
+            // z ogonkami jest wielokrotnie częstsza – ona idzie pierwsza, a przy dużej przewadze
+            // w dłuższym słowie wpisane uznajemy za błąd (krótkie „ze”, „piec”, „sad” zostają).
+            val markGap = if (exact >= 0 && same >= 0 && same != exact && typed.lowercase() == key) wl.score[same] - wl.score[exact] else 0f
+            var exactValid = exact >= 0 && !(markGap >= MISSPELLED_GAP && key.length >= 5)
+            if (same >= 0 && same != exact) offer(wl.words[same], wl.score[same] * weight + if (markGap >= PREFERRED_GAP) 8.5f else 6.5f, 0.05f)
+            if (exact >= 0 && !exactValid) knownMisspelling = true
 
             // Uzupełnienia: im dłuższy brakujący fragment, tym mniejsza szansa.
             for (i in wl.withPrefix(key, 40)) {
@@ -104,6 +116,7 @@ object Suggest {
                     else -> 2.8f
                 }
                 val lens = (key.length - if (key.length >= 6) 2 else 1)..(key.length + if (key.length >= 6) 2 else 1)
+                var nearBest = Float.NEGATIVE_INFINITY
                 for (len in lens) {
                     val bucket = wl.byLength[len] ?: continue
                     for (i in bucket) {
@@ -113,8 +126,21 @@ object Suggest {
                         val d = distance(key, k, maxDist, proximity)
                         if (d > maxDist) continue
                         offer(wl.words[i], wl.score[i] * weight - d * 5.2f, d)
+                        if (d <= 0.6f && k != key && wl.score[i] > nearBest) nearBest = wl.score[i]
                     }
                 }
+                // Literówka z korpusu („teh”): o krok dalej słowo ponad tysiąc razy częstsze.
+                if (exactValid && key.length >= 3 && nearBest - wl.score[exact] >= TYPO_GAP) {
+                    exactValid = false
+                    knownMisspelling = true
+                }
+            }
+            if (exactValid) {
+                typedValid = true
+                if (wl.words[exact] == typed) typedExactCase = true
+                offer(wl.words[exact], wl.score[exact] * weight + 8f, 0f)
+            } else if (exact >= 0) {
+                offer(wl.words[exact], wl.score[exact] * weight, 0f)
             }
         }
 
@@ -122,14 +148,29 @@ object Suggest {
         for ((w, count) in UserModel.withPrefix(key, 20)) {
             val extra = normalizeKey(w).length - key.length
             val s = 7f + ln(count + 1f) * 1.6f - 0.55f * extra
-            if (extra == 0) typedValid = typedValid || (count >= 2 && w.equals(typed, ignoreCase = true))
-            offer(w, if (extra == 0 && w.equals(typed, true)) s + 8f else s, if (extra == 0) 0.05f else -1f)
+            // Znany błąd wyuczony dawniej (bo nie był poprawiany) nie blokuje poprawki – chyba że ją cofnięto.
+            val ownTyped = extra == 0 && w.equals(typed, ignoreCase = true) && !knownMisspelling
+            if (extra == 0) typedValid = typedValid || (count >= 2 && ownTyped)
+            offer(w, if (ownTyped) s + 8f else s, if (extra == 0) 0.05f else -1f)
         }
 
-        // Bonus za parę słów (kontekst poprzedniego słowa) i za częste wybieranie.
+        // Słowa, które już są w tym polu (imiona, nazwy, terminy) – także spoza słownika.
+        for ((w, count) in field.withPrefix(key, 10)) {
+            val extra = normalizeKey(w).length - key.length
+            if (extra == 0) continue
+            offer(w, 6.5f + ln(count + 1f) * 1.4f - 0.55f * extra, -1f)
+        }
+
+        // Bonus za kontekst (para i trójka słów – wyuczone i z tego pola) i za częste wybieranie.
         for (c in cands.values) {
             val big = UserModel.bigramCount(prev, c.word)
             if (big > 0) c.score += 2.5f + ln(big.toFloat()) * 1.2f
+            val tri = UserModel.trigramCount(prev2, prev, c.word)
+            if (tri > 0) c.score += 2f + ln(tri.toFloat()) * 1.2f
+            val follow = field.followCount(null, prev, c.word)
+            if (follow > 0) c.score += 1.5f + ln(follow.toFloat())
+            val inField = field.count(c.word)
+            if (inField > 0) c.score += min(2f, 0.8f + ln(inField.toFloat()))
             val learned = UserModel.count(c.word)
             if (learned > 0) c.score += min(3f, ln(learned + 1f))
         }
@@ -160,11 +201,15 @@ object Suggest {
             if (allowed && !UserModel.isRejected(typed, top.word)) auto = Suggestion(applyCase(typed, top.word), SuggestionKind.WORD)
         }
         // Dwa słowa: pominięta spacja („jakdzien” → „jak dzień”) albo litera zamiast spacji („jakndzień”).
-        if (!typedValid && key.length >= 4) {
-            val splits = splitWords(typed, langs, proximity)
+        // Znany błąd („prosze”) ma jedną dobrą poprawkę – bez podziałów w rodzaju „pros ze”.
+        if (!typedValid && !knownMisspelling && key.length >= 4) {
+            val scored = splitScored(typed, langs, proximity)
+            val splits = scored.map { it.first }
             if (splits.isNotEmpty()) {
                 val best = Suggestion(applyCase(typed, splits[0]), SuggestionKind.WORD)
-                val singleClose = top != null && top.dist in 0f..0.6f
+                // Jedno bliskie słowo wygrywa – chyba że to rzadki zlepek z korpusu („dzieńdobry”)
+                // przy dwóch częstych słowach podziału.
+                val singleClose = top != null && top.dist in 0f..0.6f && top.score + top.dist * 5.2f + 3f > scored[0].second
                 if (mode != Autocorrect.OFF && !singleClose && !UserModel.isRejected(typed, splits[0])) auto = best
                 items.removeAll { it.text.equals(best.text, ignoreCase = true) }
                 items.add(if (auto == best) 0 else minOf(1, items.size), best)
@@ -195,7 +240,10 @@ object Suggest {
         var best: Pair<String, Float>? = null
         for (lang in langs) {
             val wl = Dictionaries.get(lang) ?: continue
-            val i = wl.indexOf(part).takeIf { it >= 0 } ?: wl.bestForKey(normalizeKey(part))
+            val exact = wl.indexOf(part)
+            val same = wl.bestForKey(normalizeKey(part))
+            // Forma z ogonkami wyraźnie częstsza („jakdzien” → „jak dzień”, nie „jak dzien”).
+            val i = if (exact >= 0 && same >= 0 && part.length >= 3 && wl.score[same] - wl.score[exact] >= PREFERRED_GAP) same else if (exact >= 0) exact else same
             if (i < 0) continue
             if (best == null || wl.score[i] > best.second) best = wl.words[i] to wl.score[i]
         }
@@ -221,7 +269,11 @@ object Suggest {
      * Wpisane słowo jako dwa słowa: brakująca spacja albo litera z dolnego rzędu trafiona zamiast spacji.
      * Najlepsze propozycje pierwsze (wg słabszego z dwóch słów).
      */
-    fun splitWords(typed: String, langs: List<String>, proximity: Proximity? = null): List<String> {
+    fun splitWords(typed: String, langs: List<String>, proximity: Proximity? = null): List<String> =
+        splitScored(typed, langs, proximity).map { it.first }
+
+    /** Jak [splitWords], z siłą podziału (słabsze z dwóch słów). */
+    private fun splitScored(typed: String, langs: List<String>, proximity: Proximity? = null): List<Pair<String, Float>> {
         if (typed.length < 4 || typed.any { !it.isLetter() && it != '\'' && it != '’' }) return emptyList()
         val out = ArrayList<Pair<String, Float>>()
         // Podziały: (pierwsza część, druga część, bonus). Pominięta spacja albo litera
@@ -248,13 +300,41 @@ object Suggest {
             }
         }
         // Rzadkie słowa (np. pojedyncze litery z końca słownika) dają śmieciowe podziały.
-        return out.filter { it.second >= 2.5f }.sortedByDescending { it.second }.map { it.first }.distinct()
+        return out.filter { it.second >= 2.5f }.sortedByDescending { it.second }.distinctBy { it.first }
     }
 
-    /** Następne słowo po [prev] – z par wyuczonych podczas pisania. */
-    fun predict(prev: String?, capitalize: Boolean, limit: Int = 3, langs: List<String> = emptyList(), active: String? = null): Suggestions {
+    /**
+     * Słowa, które zwykle padają po [prev2] [prev]: wyuczone trójki i pary słów oraz to, co już
+     * padło po tych słowach w bieżącym polu – najmocniejsze pierwsze.
+     */
+    fun nextWords(prev2: String?, prev: String?, field: FieldContext = FieldContext.Empty, limit: Int = 30): List<String> {
+        if (prev.isNullOrBlank()) return emptyList()
+        val score = HashMap<String, Float>()
+        val form = HashMap<String, String>()
+        fun add(w: String, v: Float) {
+            if (UserModel.isBlocked(w)) return
+            val k = w.lowercase()
+            form.putIfAbsent(k, w)
+            score[k] = (score[k] ?: 0f) + v
+        }
+        if (prev2 != null) UserModel.next2(prev2, prev, limit).forEach { (w, n) -> add(w, 10f + ln(n.toFloat()) * 2f) }
+        UserModel.next(prev, limit).forEach { (w, n) -> add(w, 6f + ln(n.toFloat()) * 2f) }
+        field.next(prev2, prev).take(limit).forEach { (w, n) -> add(w, 4f + ln(n.toFloat()) * 2f) }
+        return score.entries.sortedByDescending { it.value }.take(limit).map { form.getValue(it.key) }
+    }
+
+    /** Następne słowo po [prev2] [prev] – z kontekstu ([nextWords]), a gdy go brak – najczęstsze słowa. */
+    fun predict(
+        prev: String?,
+        capitalize: Boolean,
+        limit: Int = 3,
+        langs: List<String> = emptyList(),
+        active: String? = null,
+        prev2: String? = null,
+        field: FieldContext = FieldContext.Empty,
+    ): Suggestions {
         val out = LinkedHashSet<String>()
-        if (!prev.isNullOrBlank()) UserModel.next(prev, limit).forEach { out += it.first }
+        nextWords(prev2, prev, field, limit).forEach { out += it }
         // Zawsze coś dalej: brak wyuczonych par → najczęstsze słowa języka (także na początku zdania).
         val wl = (listOfNotNull(active) + langs).firstNotNullOfOrNull { Dictionaries.get(it) }
         if (wl != null) {

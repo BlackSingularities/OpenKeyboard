@@ -72,21 +72,38 @@ private val periodPopup = listOf("?", "!", ",", "'", "\"", ":", ";", "-", "(", "
 
 object Layouts {
 
+    /**
+     * Układ jak w klawiaturze dla bieżących ustawień: litery wg [KeyboardSettings.activeLanguage],
+     * w trybie „wiele naraz” ze znakami wszystkich języków tego samego alfabetu.
+     */
+    fun forSettings(mode: KeyboardMode, s: KeyboardSettings, field: FieldKind): KeyboardLayout {
+        val lang = Languages.get(s.activeLanguage)
+        val accentLangs = if (s.multilingual) Languages.sameScript(lang.code, s.languages).map { Languages.get(it) } else listOf(lang)
+        val switchable = Languages.switchTargets(s.languages, s.activeLanguage, s.multilingual).size
+        return build(mode, lang, s, field, switchable, accentLangs)
+    }
+
+    /**
+     * [lang] – układ liter i waluta, [accentLangs] – języki, których znaki są pod przytrzymaniem
+     * (pierwszy ma pierwszeństwo), [languageCount] – między iloma językami przełącza klawisz języka.
+     */
     fun build(
         mode: KeyboardMode,
         lang: Lang,
         settings: KeyboardSettings,
         field: FieldKind,
         languageCount: Int,
+        accentLangs: List<Lang> = listOf(lang),
     ): KeyboardLayout = when (mode) {
-        KeyboardMode.ALPHA -> alpha(lang, settings, field, languageCount)
+        KeyboardMode.ALPHA -> alpha(lang, settings, field, languageCount, accentLangs)
         KeyboardMode.SYMBOLS -> symbols(lang, settings, field, second = false)
         KeyboardMode.SYMBOLS2 -> symbols(lang, settings, field, second = true)
         KeyboardMode.NUMBER -> numpad(phone = false)
         KeyboardMode.PHONE -> numpad(phone = true)
     }
 
-    private fun alpha(lang: Lang, s: KeyboardSettings, field: FieldKind, languageCount: Int): KeyboardLayout {
+    private fun alpha(lang: Lang, s: KeyboardSettings, field: FieldKind, languageCount: Int, accentLangs: List<Lang>): KeyboardLayout {
+        val accents = mergedAccents(accentLangs)
         val layoutId = s.layoutOverride[lang.code] ?: lang.layout
         val rows = letterRows[layoutId] ?: letterRows.getValue("qwerty")
         val units = maxOf(rows[0].length, rows[1].length, rows[2].length + 3, 10).toFloat()
@@ -98,7 +115,7 @@ object Layouts {
             val row = letters.mapIndexed { i, c ->
                 val digit = if (r == 0 && !numberRow && i < 10) "1234567890"[i].toString() else null
                 val symbol = if (s.symbolKeys && field != FieldKind.PASSWORD) letterSymbols[r].getOrNull(i)?.toString() else null
-                letterKey(c, lang, digit, symbol, s.keyHints)
+                letterKey(c, accents, digit, symbol, s.keyHints)
             }
             if (r == 2) {
                 val side = ((units - row.size) / 2f).coerceAtLeast(1f)
@@ -107,13 +124,23 @@ object Layouts {
                 out += row
             }
         }
-        out += bottomRow(s, field, languageCount, units, KeyType.SYMBOLS, "?123", lang)
+        out += bottomRow(s, field, languageCount, units, KeyType.SYMBOLS, "?123", lang, accentLangs)
         return KeyboardLayout(out, units, KeyboardMode.ALPHA)
     }
 
+    /** Znaki pod przytrzymaniem z kilku języków naraz – w kolejności języków, bez powtórzeń. */
+    internal fun mergedAccents(langs: List<Lang>): Map<Char, String> {
+        val out = LinkedHashMap<Char, String>()
+        for (l in langs) for ((c, chars) in l.accents) {
+            val cur = out[c].orEmpty()
+            out[c] = cur + chars.filter { it !in cur }
+        }
+        return out
+    }
+
     /** Klawisz litery: pierwsza opcja okienka (pod palcem) to cyfra, a bez niej znak języka (np. Ł). */
-    private fun letterKey(c: Char, lang: Lang, digit: String?, symbol: String?, hints: Boolean): Key {
-        val primary = lang.accents[c].orEmpty()
+    private fun letterKey(c: Char, accents: Map<Char, String>, digit: String?, symbol: String?, hints: Boolean): Key {
+        val primary = accents[c].orEmpty()
         val generic = Languages.genericAccents[c].orEmpty().filter { it !in primary }
         val popup = buildList {
             // Pod palcem cyfra, a bez niej znak języka (L→ł); symbol dopiero dalej.
@@ -143,6 +170,7 @@ object Layouts {
         switchType: KeyType,
         switchLabel: String,
         lang: Lang,
+        accentLangs: List<Lang> = listOf(lang),
     ): List<Key> {
         val row = mutableListOf<Key>()
         // Emoji tylko tam, gdzie mają sens – nie w adresach, hasłach i liczbach.
@@ -171,13 +199,13 @@ object Layouts {
             used -= 0.5
         }
         val space = (units - used).toFloat().coerceAtLeast(2f)
-        return row + Key(KeyType.SPACE, " ", label = spaceLabel(s, lang), width = space) + tail
+        return row + Key(KeyType.SPACE, " ", label = spaceLabel(s, lang, accentLangs), width = space) + tail
     }
 
-    /** Napis na spacji: bieżący język albo wszystkie włączone naraz („PL · EN”). */
-    private fun spaceLabel(s: KeyboardSettings, lang: Lang): String =
-        if (s.multilingual && s.languages.size > 1) {
-            (listOf(lang.code) + s.languages.filter { it != lang.code }).take(3).joinToString(" · ") { it.uppercase() }
+    /** Napis na spacji: bieżący język albo wszystkie działające naraz z tym układem („PL · EN”). */
+    private fun spaceLabel(s: KeyboardSettings, lang: Lang, together: List<Lang>): String =
+        if (s.multilingual && together.size > 1) {
+            together.take(3).joinToString(" · ") { it.code.uppercase() }
         } else {
             lang.native
         }
