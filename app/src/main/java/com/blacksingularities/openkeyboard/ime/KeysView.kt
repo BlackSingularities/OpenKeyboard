@@ -114,7 +114,7 @@ fun keysHeight(s: KeyboardSettings, layout: KeyboardLayout, landscape: Boolean):
     rowHeight(s, layout.mode, landscape) * rowFactors(layout).sum()
 
 fun rowHeight(s: KeyboardSettings, mode: KeyboardMode, landscape: Boolean): Dp {
-    val base = if (mode == KeyboardMode.NUMBER || mode == KeyboardMode.PHONE) 56f else 52f
+    val base = if (mode == KeyboardMode.NUMBER || mode == KeyboardMode.PHONE) 50f else 46f
     val l = if (landscape) 0.78f else 1f
     return (base * s.keyHeight / 100f * l).dp
 }

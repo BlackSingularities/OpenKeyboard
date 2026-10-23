@@ -102,7 +102,7 @@ import kotlin.math.roundToInt
 
 val LocalKb = staticCompositionLocalOf<KbColors> { error("Brak kolorów klawiatury") }
 
-val STRIP_HEIGHT = 44.dp
+val STRIP_HEIGHT = 38.dp
 
 /** Całe okno klawiatury: pasek u góry, klawisze albo panel; zwykła, jednoręczna lub pływająca. */
 @Composable
