@@ -1,9 +1,14 @@
-## 1.3.1 — Transparent application icon
-
-- Use the transparent application mark in launcher, splash and existing branding surfaces.
-- Preserve alpha in legacy and adaptive Android icons; refresh themed icon resources.
-
 # Zmiany
+
+## 1.6.0
+- **Wiele języków naraz bez przełączania**: język, w którym piszesz, rozpoznaje się sam – z ostatnich słów, z tekstu, który już jest w polu, a w nowym polu z ostatniego języka w danej aplikacji. Od niego zależą podpowiedzi, cudzysłowy, daty, przelicznik jednostek i dyktowanie (na Androidzie 14+ usługa mowy sama przełącza się między włączonymi językami).
+- **Jeden układ dla języków o tym samym alfabecie**: pod przytrzymaniem są znaki wszystkich włączonych języków (np. ą i ä na „a”), klawisz i gest zmiany języka przełączają już tylko między alfabetami (łacinka ↔ cyrylica), a spacja pokazuje języki działające razem.
+- **Więcej podpowiedzi na pasku**: szerokość wg słowa zamiast sztywnych trzech pól – widać kilka słów naraz, reszta po przewinięciu w bok (wygaszona krawędź pokazuje, że jest ich więcej).
+- **Dłuższy kontekst**: klawiatura uczy się trójek słów, a nie tylko par, i korzysta z tekstu w polu – imiona i nazwy, które już padły, są podpowiadane od pierwszych liter, a słowa, które padły po tych samych słowach, są przewidywane.
+- **Słownik działa także tam, gdzie aplikacja go wyłącza** (np. Duolingo) – bez przeskakiwania. Pola udające hasło („widoczne hasło”) mają podpowiedzi, ale bez nauki słów. Dawne zachowanie: opcja „Bez podpowiedzi, gdy aplikacja prosi”.
+- **„Zapomnij” po przytrzymaniu podpowiedzi** – pasek pyta o potwierdzenie; słowo wyuczone znika ze słownika, słowo ze słownika ogólnego trafia do zablokowanych. W słowniku użytkownika można poprawić pisownię słowa.
+- **TalkBack**: klawisze, podpowiedzi i przyciski paska mają opisy i działają dwukrotnym dotknięciem.
+- **Pierwsze uruchomienie**: języki pisania wg języków systemu (i angielski) zamiast zawsze polskiego.
 
 ## 1.5.2
 - **Mądrzejsza autokorekta**: poprawia większy bełkot w dłuższych słowach (więcej literówek i pominiętych liter) i rozdziela sklejone słowa także po jednoliterowym słowie i z literą zamiast spacji („wbtej” → „w tej”, „ibrozumiec” → „i rozumieć”).
@@ -39,6 +44,10 @@
 - **Domykanie nawiasów i cudzysłowów** (opcja).
 - **Dyktowanie w ustawieniach naprawione**: stan mikrofonu odświeża się po udzieleniu zgody, po trwałej odmowie aplikacja otwiera ustawienia systemu, „Zezwól w aplikacji” z klawiatury pokazuje prawdziwe okno zgody. Nowa grupa „Dyktowanie” (stan, ustawienia rozpoznawania mowy), pełny kod języka dla usługi mowy (pl-PL) i czytelne komunikaty błędów.
 - Nowe przekształcenia tekstu: bez ogonków, od tyłu, do góry nogami, porządek w odstępach.
+
+## 1.3.1
+- Przezroczysty znak aplikacji w ikonie, ekranie startowym i pozostałych miejscach z logo.
+- Zachowana przezroczystość w starszych i adaptacyjnych ikonach Androida; odświeżone ikony motywowe.
 
 ## 1.3.0
 - **4× większy słownik polski** (200 tys. form zamiast 50 tys.) i ponad 130 tys. słów angielskich, z poprawnymi skrótami (I'm, don't…). Pobierane języki mają teraz do 150 tys. słów.

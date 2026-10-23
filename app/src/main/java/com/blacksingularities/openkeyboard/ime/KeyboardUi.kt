@@ -98,6 +98,12 @@ import com.blacksingularities.openkeyboard.keyboard.Key
 import com.blacksingularities.openkeyboard.keyboard.KeyType
 import com.blacksingularities.openkeyboard.keyboard.KeyboardMode
 import com.blacksingularities.openkeyboard.keyboard.KeyboardThemes
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.onClick
+import androidx.compose.ui.semantics.onLongClick
+import androidx.compose.ui.semantics.role
+import androidx.compose.ui.semantics.semantics
 import kotlin.math.roundToInt
 
 val LocalKb = staticCompositionLocalOf<KbColors> { error("Brak kolorów klawiatury") }
@@ -210,6 +216,12 @@ fun Modifier.tap(onLong: (() -> Unit)? = null, onClick: () -> Unit): Modifier = 
             onTap = { click() },
         )
     }
+        // TalkBack: element jest przyciskiem (dwukrotne dotknięcie – kliknięcie, przytrzymanie – długie).
+        .semantics(mergeDescendants = true) {
+            role = Role.Button
+            onClick { click(); true }
+            if (onLong != null) onLongClick { long?.invoke(); true }
+        }
 }
 
 @Composable
@@ -458,6 +470,7 @@ private fun TopBar(c: KeyboardController) {
         when {
             c.internal != null -> InternalBar(c)
             c.panel != Panel.KEYS -> PanelBar(c)
+            c.forgetCandidate != null -> ForgetBar(c, c.forgetCandidate!!)
             c.toolbarOpen || c.suggestions.items.isEmpty() -> Toolbar(c)
             else -> SuggestionStrip(c)
         }
@@ -539,11 +552,12 @@ private fun SuggestionStrip(c: KeyboardController) {
     val auto = c.suggestions.autoCorrect
     Row(Modifier.fillMaxSize(), verticalAlignment = Alignment.CenterVertically) {
         StripIcon(if (c.incognito) Icons.Rounded.VisibilityOff else Icons.Rounded.Apps, tr("Narzędzia")) { c.toolbarOpen = true }
-        // Najlepsza podpowiedź na środku pierwszego ekranu (druga z lewej, trzecia z prawej),
-        // kolejne – ile ich silnik znajdzie – po przewinięciu w prawo.
+        // Najlepsza podpowiedź druga od lewej (blisko środka), dalej wszystkie pozostałe, które
+        // silnik znalazł – szerokość wg słowa, więc na ekranie mieści się ich kilka, reszta po przewinięciu.
         val ordered = if (items.size >= 2) listOf(items[1], items[0]) + items.drop(2) else items
         BoxWithConstraints(Modifier.weight(1f).fillMaxHeight()) {
-            val slotW = maxWidth / 3
+            // Mało podpowiedzi – równe pola jak dotąd; dużo – węższe, żeby było widać więcej.
+            val slotW = if (ordered.size <= 3) maxWidth / 3 else maxWidth / 5
             val scroll = remember(items) { androidx.compose.foundation.ScrollState(0) }
             Row(
                 Modifier.fillMaxHeight().horizontalScroll(scroll),
@@ -552,16 +566,17 @@ private fun SuggestionStrip(c: KeyboardController) {
                 if (ordered.size == 1) Spacer(Modifier.width(slotW))
                 ordered.forEach { sug ->
                     val main = sug === items[0]
+                    val isAuto = auto != null && sug.text == auto.text
+                    val strong = main && (isAuto || c.suggestions.typedValid || sug.kind == SuggestionKind.PREDICTION)
                     Box(
                         Modifier
                             .fillMaxHeight()
                             .widthIn(min = slotW)
                             .tap(onLong = { c.blockSuggestion(sug) }, onClick = { c.pickSuggestion(sug) })
-                            .padding(horizontal = 8.dp),
+                            .semantics { if (sug.kind == SuggestionKind.TYPED) contentDescription = tr("Zostaw „{0}”", sug.text) }
+                            .padding(horizontal = 10.dp),
                         contentAlignment = Alignment.Center,
                     ) {
-                        val isAuto = auto != null && sug.text == auto.text
-                        val strong = main && (isAuto || c.suggestions.typedValid || sug.kind == SuggestionKind.PREDICTION)
                         Text(
                             sug.display,
                             color = if (sug.kind == SuggestionKind.TYPED) colors.textDim else colors.text,
@@ -572,6 +587,16 @@ private fun SuggestionStrip(c: KeyboardController) {
                         )
                     }
                 }
+            }
+            // Delikatne wygaszenie prawej krawędzi – znak, że dalej są kolejne słowa.
+            if (scroll.canScrollForward) {
+                Box(
+                    Modifier
+                        .align(Alignment.CenterEnd)
+                        .fillMaxHeight()
+                        .width(28.dp)
+                        .background(androidx.compose.ui.graphics.Brush.horizontalGradient(listOf(androidx.compose.ui.graphics.Color.Transparent, colors.strip))),
+                )
             }
         }
         if (c.extras.isNotEmpty()) {
@@ -584,6 +609,42 @@ private fun SuggestionStrip(c: KeyboardController) {
             }
         }
     }
+}
+
+/** Przytrzymana podpowiedź: zapomnieć słowo? (zamiast od razu blokować). */
+@Composable
+private fun ForgetBar(c: KeyboardController, s: Suggestion) {
+    val colors = LocalKb.current
+    Row(Modifier.fillMaxSize().padding(horizontal = 10.dp), verticalAlignment = Alignment.CenterVertically) {
+        Text(
+            tr("Zapomnieć „{0}”?", s.text),
+            color = colors.text,
+            fontSize = 15.sp,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.weight(1f),
+        )
+        StripButton(tr("Anuluj"), primary = false) { c.cancelForget() }
+        Spacer(Modifier.width(6.dp))
+        StripButton(tr("Zapomnij"), primary = true) { c.forgetWord(s) }
+    }
+}
+
+@Composable
+private fun StripButton(label: String, primary: Boolean, onClick: () -> Unit) {
+    val colors = LocalKb.current
+    Text(
+        label,
+        color = if (primary) colors.onAccent else colors.text,
+        fontSize = 14.sp,
+        fontWeight = FontWeight.SemiBold,
+        maxLines = 1,
+        modifier = Modifier
+            .clip(RoundedCornerShape(50))
+            .background(if (primary) colors.accent else colors.key)
+            .tap(onClick = onClick)
+            .padding(horizontal = 14.dp, vertical = 7.dp),
+    )
 }
 
 @Composable

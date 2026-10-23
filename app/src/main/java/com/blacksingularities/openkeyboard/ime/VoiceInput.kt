@@ -3,6 +3,7 @@ package com.blacksingularities.openkeyboard.ime
 import android.Manifest
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.os.Build
 import android.os.Bundle
 import android.speech.RecognitionListener
 import android.speech.RecognizerIntent
@@ -87,9 +88,16 @@ class VoiceInput(private val c: KeyboardController) {
         })
         val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH)
             .putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
-            .putExtra(RecognizerIntent.EXTRA_LANGUAGE, java.util.Locale.forLanguageTag(c.activeLanguage).let { l -> if (l.country.isEmpty()) java.util.Locale(l.language, defaultCountry(l.language)).toLanguageTag() else l.toLanguageTag() })
+            // Język, w którym właśnie się pisze (wykryty), a nie wybrany układ klawiszy.
+            .putExtra(RecognizerIntent.EXTRA_LANGUAGE, speechTag(c.writingLanguage))
             .putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, true)
             .putExtra(RecognizerIntent.EXTRA_CALLING_PACKAGE, ctx.packageName)
+        // Android 14+: usługa mowy sama przełącza się między włączonymi językami (jeśli ma ich modele).
+        val spoken = c.languages.suggestLangs(c.settings).map(::speechTag)
+        if (spoken.size > 1 && Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+            intent.putExtra(RecognizerIntent.EXTRA_ENABLE_LANGUAGE_SWITCH, RecognizerIntent.LANGUAGE_SWITCH_BALANCED)
+                .putStringArrayListExtra(RecognizerIntent.EXTRA_LANGUAGE_SWITCH_ALLOWED_LANGUAGES, ArrayList(spoken))
+        }
         state = VoiceState.LISTENING
         runCatching { r.startListening(intent) }.onFailure {
             state = VoiceState.ERROR
@@ -115,6 +123,10 @@ class VoiceInput(private val c: KeyboardController) {
     fun destroy() = stop()
 
     /** Usługi mowy lepiej rozumieją „pl-PL” niż samo „pl”. */
+    /** Pełny kod dla usługi mowy (pl → pl-PL). */
+    private fun speechTag(code: String): String =
+        java.util.Locale.forLanguageTag(code).let { l -> if (l.country.isEmpty()) java.util.Locale(l.language, defaultCountry(l.language)).toLanguageTag() else l.toLanguageTag() }
+
     private fun defaultCountry(lang: String): String = when (lang) {
         "en" -> "US"; "pl" -> "PL"; "de" -> "DE"; "fr" -> "FR"; "es" -> "ES"; "it" -> "IT"; "pt" -> "PT"
         "uk" -> "UA"; "cs" -> "CZ"; "sk" -> "SK"; "sv" -> "SE"; "da" -> "DK"; "nb", "no" -> "NO"; "el" -> "GR"

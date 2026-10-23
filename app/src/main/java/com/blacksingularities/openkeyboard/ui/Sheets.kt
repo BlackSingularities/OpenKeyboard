@@ -120,7 +120,7 @@ fun LanguagesSheet(vm: AppViewModel) {
         val enabled = s.languages.map { Languages.get(it) }
         val rest = Languages.all.filter { it.code !in s.languages }
             .filter { query.isBlank() || it.name.contains(query, true) || it.native.contains(query, true) || it.code.equals(query, true) }
-        Group(tr("Włączone (kolejność przełączania)")) {
+        Group(if (s.multilingual) tr("Włączone – działają naraz") else tr("Włączone (kolejność przełączania)")) {
             enabled.forEachIndexed { i, l ->
                 LanguageRow(vm, l.code, states[l.code], enabled = true, first = i == 0, last = i == enabled.lastIndex)
             }
@@ -185,7 +185,8 @@ private fun LanguageRow(vm: AppViewModel, code: String, state: DictState?, enabl
                         vm.update { st -> st.copy(layoutOverride = if (id == l.layout) st.layoutOverride - code else st.layoutOverride + (code to id)) }
                     }
                 }
-                if (!active) Chip(tr("Ustaw bieżący"), false) { vm.update { it.copy(activeLanguage = code) } }
+                // Wiele naraz: wybór decyduje tylko o układzie liter wspólnym dla języków tego alfabetu.
+                if (!active) Chip(if (s.multilingual) tr("Użyj tego układu") else tr("Ustaw bieżący"), false) { vm.update { it.copy(activeLanguage = code) } }
             }
         }
     }
@@ -247,7 +248,7 @@ private fun IconBtn(icon: ImageVector, label: String, enabled: Boolean = true, o
 @Composable
 fun KeyboardPreview(s: KeyboardSettings) {
     val colors = KeyboardThemes.colors(s, androidx.compose.foundation.isSystemInDarkTheme())
-    val layout = remember(s) { Layouts.build(KeyboardMode.ALPHA, Languages.get(s.activeLanguage), s, FieldKind.TEXT, s.languages.size) }
+    val layout = remember(s) { Layouts.forSettings(KeyboardMode.ALPHA, s, FieldKind.TEXT) }
     CompositionLocalProvider(androidx.compose.material3.LocalContentColor provides colors.text) {
         val bgMod = colors.background2?.let { Modifier.background(androidx.compose.ui.graphics.Brush.verticalGradient(listOf(colors.background, it))) } ?: Modifier.background(colors.background)
         Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).then(bgMod).padding(bottom = 6.dp)) {
@@ -355,13 +356,15 @@ fun DictionarySheet(vm: AppViewModel) {
     var query by remember { mutableStateOf("") }
     var newWord by remember { mutableStateOf("") }
     var showBlocked by remember { mutableStateOf(false) }
+    var editing by remember { mutableStateOf<String?>(null) }
+    var editText by remember { mutableStateOf("") }
     val words = remember(version, query) {
         UserModel.allWords().filter { query.isBlank() || it.first.contains(query, true) }.take(300)
     }
     val blocked = remember(version) { UserModel.blockedWords() }
     Panel(tr("Słownik użytkownika"), onClose = { vm.sheet = null }) {
         Text(
-            tr("Słowa zapamiętane podczas pisania i dodane ręcznie. Słowo zablokowane (przytrzymaj podpowiedź w klawiaturze) nie będzie podpowiadane."),
+            tr("Słowa zapamiętane podczas pisania i dodane ręcznie – dotknij słowa, aby poprawić pisownię. Przytrzymaj podpowiedź w klawiaturze, aby słowo zapomnieć; słowo ze słownika ogólnego trafia wtedy do zablokowanych."),
             color = Palette.TextDim,
             fontSize = 12.sp,
             lineHeight = 16.sp,
@@ -385,7 +388,21 @@ fun DictionarySheet(vm: AppViewModel) {
             Group(null) {
                 if (words.isEmpty()) Text(tr("Brak słów – pisz, a klawiatura sama się nauczy."), color = Palette.TextDim, fontSize = 12.sp, modifier = Modifier.padding(14.dp))
                 for ((w, n) in words) {
-                    Row(Modifier.fillMaxWidth().padding(start = 14.dp, end = 4.dp, top = 2.dp, bottom = 2.dp), verticalAlignment = Alignment.CenterVertically) {
+                    if (editing == w) {
+                        Row(Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+                            DarkField(editText, { editText = it.trim() }, w, Modifier.weight(1f))
+                            Spacer(Modifier.width(8.dp))
+                            PillButton(tr("Zapisz"), enabled = editText.length >= 2 && editText != w) {
+                                UserModel.renameWord(w, editText)
+                                editing = null
+                            }
+                        }
+                        continue
+                    }
+                    Row(
+                        Modifier.fillMaxWidth().clickable { editing = w; editText = w }.padding(start = 14.dp, end = 4.dp, top = 2.dp, bottom = 2.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
                         Text(w, fontSize = 14.sp, modifier = Modifier.weight(1f))
                         Text("×$n", fontSize = 11.sp, color = Palette.TextDim)
                         IconBtn(Icons.Rounded.Delete, tr("Usuń")) { UserModel.removeWord(w) }

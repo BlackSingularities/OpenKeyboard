@@ -59,6 +59,13 @@ import com.blacksingularities.openkeyboard.data.KeyStyle
 import com.blacksingularities.openkeyboard.data.SplitMode
 import com.blacksingularities.openkeyboard.dict.Pt
 import com.blacksingularities.openkeyboard.dict.normalizeKey
+import com.blacksingularities.openkeyboard.i18n.tr
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.onClick
+import androidx.compose.ui.semantics.onLongClick
+import androidx.compose.ui.semantics.role
+import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.foundation.Canvas
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
@@ -240,7 +247,7 @@ fun KeyGrid(
                 ),
         ) {
             for (kr in rects) {
-                KeyView(kr, settings, colors, upper, shift, enterAction, multiLine, pressed[kr.id] == true, gapPx, layout.mode)
+                KeyView(kr, settings, colors, upper, shift, enterAction, multiLine, pressed[kr.id] == true, gapPx, layout.mode, actions)
             }
         }
 
@@ -327,6 +334,33 @@ fun keyLabel(k: Key, upper: Boolean): String = when {
     else -> k.label
 }
 
+/** Opis klawisza czytany przez TalkBack. */
+fun keyDescription(k: Key, upper: Boolean, shift: ShiftState, enterAction: Int, multiLine: Boolean): String = when (k.type) {
+    KeyType.CHAR, KeyType.TEXT -> keyLabel(k, upper)
+    KeyType.SPACE -> tr("Spacja")
+    KeyType.SHIFT -> when (shift) {
+        ShiftState.OFF -> tr("Shift")
+        ShiftState.ONESHOT -> tr("Shift włączony")
+        ShiftState.LOCKED -> tr("Caps Lock")
+    }
+    KeyType.DELETE -> tr("Usuń")
+    KeyType.ENTER -> if (multiLine) tr("Nowy wiersz") else when (enterAction) {
+        EditorInfo.IME_ACTION_GO -> tr("Przejdź")
+        EditorInfo.IME_ACTION_SEARCH -> tr("Szukaj")
+        EditorInfo.IME_ACTION_SEND -> tr("Wyślij")
+        EditorInfo.IME_ACTION_NEXT -> tr("Dalej")
+        EditorInfo.IME_ACTION_DONE -> tr("Gotowe")
+        EditorInfo.IME_ACTION_PREVIOUS -> tr("Wstecz")
+        else -> tr("Enter")
+    }
+    KeyType.SYMBOLS -> if (k.combo) tr("Symbole, przytrzymaj – emoji") else tr("Symbole")
+    KeyType.SYMBOLS2 -> tr("Więcej symboli")
+    KeyType.ALPHA -> tr("Litery")
+    KeyType.LANGUAGE -> tr("Zmień język")
+    KeyType.EMOJI -> tr("Emoji")
+    KeyType.NUMPAD -> tr("Klawiatura numeryczna")
+}
+
 @Composable
 private fun KeyView(
     kr: KeyRect,
@@ -339,6 +373,7 @@ private fun KeyView(
     pressed: Boolean,
     gapPx: Float,
     mode: KeyboardMode,
+    actions: KeyActions?,
 ) {
     val density = LocalDensity.current
     val k = kr.key
@@ -374,7 +409,16 @@ private fun KeyView(
             .then(if (raised) Modifier.clip(shape).background(shade).padding(bottom = 2.dp) else Modifier)
             .clip(shape)
             .background(bg)
-            .then(if (s.keyStyle == KeyStyle.OUTLINE && !colors.flat && !pressed && !isAction && !shiftOn) Modifier.border(1.dp, colors.textDim.copy(alpha = 0.35f), shape) else Modifier),
+            .then(if (s.keyStyle == KeyStyle.OUTLINE && !colors.flat && !pressed && !isAction && !shiftOn) Modifier.border(1.dp, colors.textDim.copy(alpha = 0.35f), shape) else Modifier)
+            // TalkBack: dotyk czyta klawisz, dwukrotne dotknięcie go naciska (bez śledzenia palców).
+            .clearAndSetSemantics {
+                contentDescription = keyDescription(k, upper, shift, enterAction, multiLine)
+                role = Role.Button
+                if (actions != null) {
+                    onClick { actions.press(k); actions.commit(k); true }
+                    onLongClick { actions.longPress(k) }
+                }
+            },
         contentAlignment = Alignment.Center,
     ) {
         val scale = s.fontScale / 100f

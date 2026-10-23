@@ -39,15 +39,21 @@ private data class UserData(
     val stats: Stats = Stats(),
     val emojiRecent: List<String> = emptyList(),
     val rejected: Set<String> = emptySet(),
+    /** Trójki słów: „przedostatnie poprzednie” → następne słowo → ile razy. */
+    val trigrams: Map<String, Map<String, Int>> = emptyMap(),
+    /** Ostatnio wykryty język pisania w aplikacji (pakiet → kod języka). */
+    val appLanguages: Map<String, String> = emptyMap(),
 )
 
 /**
- * Model użytkownika: wyuczone słowa, pary słów (przewidywanie następnego słowa), słowa
+ * Model użytkownika: wyuczone słowa, pary i trójki słów (przewidywanie następnego słowa), słowa
  * zablokowane, skróty tekstowe, ostatnie emoji i statystyki. Zapis do pliku z opóźnieniem.
  */
 object UserModel {
     private const val MAX_WORDS = 20_000
     private const val MAX_BIGRAM_HEADS = 8_000
+    private const val MAX_TRIGRAM_HEADS = 12_000
+    private const val MAX_APPS = 200
     private val json = Json { ignoreUnknownKeys = true }
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private var saveJob: Job? = null
@@ -55,6 +61,8 @@ object UserModel {
 
     private val words = HashMap<String, Int>()
     private val bigrams = HashMap<String, HashMap<String, Int>>()
+    private val trigrams = HashMap<String, HashMap<String, Int>>()
+    private val appLanguages = LinkedHashMap<String, String>()
     private val blocked = HashSet<String>()
     private val normCache = HashMap<String, String>()
     /** Poprawki cofnięte przez użytkownika: „wpisane\u0001poprawione”. */
@@ -83,10 +91,14 @@ object UserModel {
         synchronized(this) {
             words.clear()
             bigrams.clear()
+            trigrams.clear()
+            appLanguages.clear()
             blocked.clear()
             if (data != null) {
                 words.putAll(data.words)
                 data.bigrams.forEach { (k, v) -> bigrams[k] = HashMap(v) }
+                data.trigrams.forEach { (k, v) -> trigrams[k] = HashMap(v) }
+                appLanguages.putAll(data.appLanguages)
                 blocked.addAll(data.blocked)
                 rejected.addAll(data.rejected)
                 _shortcuts.value = data.shortcuts
@@ -99,7 +111,10 @@ object UserModel {
     }
 
     private fun snapshot(): UserData = synchronized(this) {
-        UserData(HashMap(words), bigrams.mapValues { HashMap(it.value) }, HashSet(blocked), _shortcuts.value, _stats.value, _emojiRecent.value, HashSet(rejected))
+        UserData(
+            HashMap(words), bigrams.mapValues { HashMap(it.value) }, HashSet(blocked), _shortcuts.value, _stats.value, _emojiRecent.value, HashSet(rejected),
+            trigrams.mapValues { HashMap(it.value) }, LinkedHashMap(appLanguages),
+        )
     }
 
     private fun scheduleSave() {
@@ -135,20 +150,32 @@ object UserModel {
 
     fun isBlocked(word: String): Boolean = synchronized(this) { word.lowercase() in blocked }
 
-    fun learn(word: String, prev: String?) {
+    /** Zapamiętuje słowo, parę ([prev] [word]) i trójkę ([prev2] [prev] [word]). */
+    fun learn(word: String, prev: String?, prev2: String? = null) {
         if (word.length < 2 || word.length > 40 || word.any { it.isDigit() }) return
         synchronized(this) {
             words[word] = (words[word] ?: 0) + 1
             if (prev != null) {
-                val head = prev.lowercase()
-                val map = bigrams.getOrPut(head) { HashMap() }
-                map[word] = (map[word] ?: 0) + 1
-                if (map.size > 40) map.entries.minByOrNull { it.value }?.let { map.remove(it.key) }
+                bump(bigrams, prev.lowercase(), word, 40)
+                if (prev2 != null) bump(trigrams, trigramKey(prev2, prev), word, 20)
             }
             if (words.size > MAX_WORDS) words.entries.sortedBy { it.value }.take(words.size - MAX_WORDS).forEach { words.remove(it.key) }
-            if (bigrams.size > MAX_BIGRAM_HEADS) bigrams.entries.sortedBy { it.value.values.sum() }.take(bigrams.size - MAX_BIGRAM_HEADS).forEach { bigrams.remove(it.key) }
+            prune(bigrams, MAX_BIGRAM_HEADS)
+            prune(trigrams, MAX_TRIGRAM_HEADS)
         }
         scheduleSave()
+    }
+
+    private fun trigramKey(prev2: String, prev: String) = prev2.lowercase() + " " + prev.lowercase()
+
+    private fun bump(table: HashMap<String, HashMap<String, Int>>, head: String, word: String, perHead: Int) {
+        val map = table.getOrPut(head) { HashMap() }
+        map[word] = (map[word] ?: 0) + 1
+        if (map.size > perHead) map.entries.minByOrNull { it.value }?.let { map.remove(it.key) }
+    }
+
+    private fun prune(table: HashMap<String, HashMap<String, Int>>, max: Int) {
+        if (table.size > max) table.entries.sortedBy { it.value.values.sum() }.take(table.size - max).forEach { table.remove(it.key) }
     }
 
     /** Słowa użytkownika zaczynające się od klucza (znormalizowanego). */
@@ -176,6 +203,32 @@ object UserModel {
 
     fun bigramCount(prev: String?, word: String): Int = if (prev == null) 0 else synchronized(this) { bigrams[prev.lowercase()]?.get(word) ?: 0 }
 
+    /** Słowa wyuczone po [prev2] [prev] – najczęstsze pierwsze. */
+    fun next2(prev2: String, prev: String, limit: Int): List<Pair<String, Int>> = synchronized(this) {
+        trigrams[trigramKey(prev2, prev)]?.entries
+            ?.filter { it.key.lowercase() !in blocked }
+            ?.sortedByDescending { it.value }
+            ?.take(limit)
+            ?.map { it.key to it.value }
+            .orEmpty()
+    }
+
+    fun trigramCount(prev2: String?, prev: String?, word: String): Int =
+        if (prev2 == null || prev == null) 0 else synchronized(this) { trigrams[trigramKey(prev2, prev)]?.get(word) ?: 0 }
+
+    /** Język ostatnio wykryty w aplikacji [pkg] – na start pisania w niej. */
+    fun appLanguage(pkg: String): String? = synchronized(this) { appLanguages[pkg] }
+
+    fun setAppLanguage(pkg: String, lang: String) {
+        synchronized(this) {
+            if (appLanguages[pkg] == lang) return
+            appLanguages.remove(pkg)
+            appLanguages[pkg] = lang
+            while (appLanguages.size > MAX_APPS) appLanguages.remove(appLanguages.keys.first())
+        }
+        scheduleSave()
+    }
+
     fun addWord(word: String) {
         synchronized(this) {
             blocked.remove(word.lowercase())
@@ -188,6 +241,19 @@ object UserModel {
         synchronized(this) {
             words.remove(word)
             bigrams.values.forEach { it.remove(word) }
+            trigrams.values.forEach { it.remove(word) }
+        }
+        scheduleSave()
+    }
+
+    /** Zmiana pisowni słowa w słowniku (liczba użyć i pary słów zostają). */
+    fun renameWord(old: String, new: String) {
+        if (new.length < 2 || old == new) return
+        synchronized(this) {
+            val n = words.remove(old) ?: 0
+            words[new] = maxOf(n, words[new] ?: 0, 5)
+            for (table in listOf(bigrams, trigrams)) for (m in table.values) m.remove(old)?.let { c -> m[new] = (m[new] ?: 0) + c }
+            blocked.remove(new.lowercase())
         }
         scheduleSave()
     }
@@ -210,6 +276,7 @@ object UserModel {
         synchronized(this) {
             words.clear()
             bigrams.clear()
+            trigrams.clear()
         }
         scheduleSave()
     }
@@ -243,6 +310,8 @@ object UserModel {
         synchronized(this) {
             words.clear(); words.putAll(data.words)
             bigrams.clear(); data.bigrams.forEach { (k, v) -> bigrams[k] = HashMap(v) }
+            trigrams.clear(); data.trigrams.forEach { (k, v) -> trigrams[k] = HashMap(v) }
+            appLanguages.clear(); appLanguages.putAll(data.appLanguages)
             blocked.clear(); blocked.addAll(data.blocked)
             rejected.clear(); rejected.addAll(data.rejected)
         }

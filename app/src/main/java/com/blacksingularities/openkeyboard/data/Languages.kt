@@ -15,7 +15,18 @@ data class Lang(
     val dict: String = code,
     val bundled: Boolean = false,
     val rtl: Boolean = false,
-)
+) {
+    /** Alfabet – wg domyślnego układu (własny układ, np. QWERTY dla rosyjskiego, go nie zmienia). */
+    val script: Script
+        get() = when (layout) {
+            "ru", "uk", "be" -> Script.CYRILLIC
+            "el" -> Script.GREEK
+            else -> Script.LATIN
+        }
+}
+
+/** Alfabet języka – języki o tym samym alfabecie dzielą jeden układ klawiszy w trybie „wiele naraz”. */
+enum class Script { LATIN, CYRILLIC, GREEK }
 
 object Languages {
     val all: List<Lang> = listOf(
@@ -54,6 +65,39 @@ object Languages {
     private val byCode = all.associateBy { it.code }
 
     fun get(code: String): Lang = byCode[code] ?: all.first()
+
+    fun isSupported(code: String): Boolean = code in byCode
+
+    /** Włączone języki pisane tym samym alfabetem co [code] – [code] pierwszy, reszta w kolejności z [enabled]. */
+    fun sameScript(code: String, enabled: List<String>): List<String> {
+        val script = get(code).script
+        return listOf(code) + enabled.filter { it != code && get(it).script == script }
+    }
+
+    /**
+     * Między czym przełącza klawisz języka: w trybie „wiele naraz” tylko między alfabetami
+     * (łacinka ↔ cyrylica) – po jednym języku z każdej grupy, [active] za swoją grupę.
+     */
+    fun switchTargets(enabled: List<String>, active: String, multilingual: Boolean): List<String> {
+        if (!multilingual) return enabled
+        val activeScript = get(active).script
+        return enabled.groupBy { get(it).script }.map { (script, group) -> if (script == activeScript) active else group.first() }
+    }
+
+    /**
+     * Języki pisania na pierwsze uruchomienie: języki systemu, które znamy (najwyżej trzy),
+     * i angielski. Stare kody Androida („in”, „nb”) zamieniane na używane tutaj.
+     */
+    fun fromSystem(systemCodes: List<String>): List<String> {
+        val mapped = systemCodes.map {
+            when (it.lowercase()) {
+                "in" -> "id"
+                "nb", "nn" -> "no"
+                else -> it.lowercase()
+            }
+        }.filter { isSupported(it) }.distinct().take(3)
+        return (mapped + "en").distinct()
+    }
 
     /** Dostępne układy dla języka (domyślny pierwszy) – do zmiany w ustawieniach. */
     fun layoutsFor(lang: Lang): List<String> {

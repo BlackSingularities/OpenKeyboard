@@ -55,6 +55,7 @@ import androidx.compose.material.icons.rounded.Mic
 import androidx.compose.material.icons.rounded.MicOff
 import androidx.compose.material.icons.rounded.Notifications
 import androidx.compose.material.icons.rounded.OpenWith
+import androidx.compose.material.icons.rounded.Block
 import androidx.compose.material.icons.rounded.Palette
 import androidx.compose.material.icons.rounded.PictureInPicture
 import androidx.compose.material.icons.rounded.Psychology
@@ -382,6 +383,7 @@ private fun ColumnScope.SettingsContent(vm: AppViewModel) {
             Tile(Icons.Rounded.Calculate, tr("Kalkulator"), tr("Wynik działania w pasku: wpisz np. 12*7+3"), s.inlineCalc) { v -> set { it.copy(inlineCalc = v) } },
             Tile(Icons.AutoMirrored.Rounded.Shortcut, tr("Skróty"), tr("Rozwijanie skrótów tekstowych (np. „pzdr” → „Pozdrawiam”); w treści działają {data}, {godzina}, {dzień}, {schowek} i {kursor}"), s.shortcuts) { v -> set { it.copy(shortcuts = v) } },
             Tile(Icons.Rounded.OpenWith, tr("Popraw słowo"), tr("Kursor postawiony na końcu słowa pokazuje dla niego podpowiedzi"), s.reSuggest) { v -> set { it.copy(reSuggest = v) } },
+            Tile(Icons.Rounded.Block, tr("Bez podpowiedzi, gdy aplikacja prosi"), tr("Niektóre aplikacje (np. Duolingo) wyłączają słownik – domyślnie klawiatura podpowiada mimo to"), s.honorNoSuggestions) { v -> set { it.copy(honorNoSuggestions = v) } },
             Tile(Icons.Rounded.ContentPaste, tr("Wklej z paska"), tr("Świeżo skopiowany tekst pojawia się w pasku do wklejenia"), s.clipboardSuggestion) { v -> set { it.copy(clipboardSuggestion = v) } },
         ),
     )
