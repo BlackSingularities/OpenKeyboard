@@ -40,14 +40,33 @@ object SmartCase {
         "i" to "I", "i'm" to "I'm", "i’m" to "I’m", "i've" to "I've", "i'll" to "I'll", "i'd" to "I'd",
     )
 
-    /** Słowo po poprawce wielkości liter. [sentenceStart] – słowo zaczyna zdanie. */
-    fun fix(word: String, sentenceStart: Boolean, langs: Collection<String>): String {
+    /** Jednoliterowe spójniki i przyimki pisane małą literą („i”, „w”, „z”…) – nie zamieniać na angielskie „I”. */
+    private val lowercaseShort = mapOf(
+        "pl" to setOf("i", "a", "o", "u", "w", "z"),
+        "cs" to setOf("i", "a", "o", "u", "v", "k", "s", "z"),
+        "sk" to setOf("i", "a", "o", "u", "v", "k", "s", "z"),
+        "hr" to setOf("i", "a", "o", "u", "k", "s"),
+        "sr" to setOf("i", "a", "o", "u", "k", "s"),
+        "sl" to setOf("i", "a", "o", "u", "k", "s", "v", "z"),
+        "it" to setOf("i", "e", "o", "a"),
+    )
+
+    /** [word] to małe słowo w którymś z [langs] poza angielskim (np. polskie „i”). */
+    fun isLowercaseShort(word: String, langs: Collection<String>): Boolean =
+        langs.any { it != "en" && word in lowercaseShort[it].orEmpty() }
+
+    /**
+     * Słowo po poprawce wielkości liter. [sentenceStart] – słowo zaczyna zdanie.
+     * [primary] – język, w którym właśnie się pisze: angielskie „i” → „I” tylko, gdy to angielski
+     * albo żaden z włączonych języków nie ma takiego słowa.
+     */
+    fun fix(word: String, sentenceStart: Boolean, langs: Collection<String>, primary: String? = null): String {
         var w = word
         // Dwie wielkie na początku, reszta małe – palec za długo na Shift.
         if (w.length >= 3 && w[0].isUpperCase() && w[1].isUpperCase() && w.drop(2).all { !it.isLetter() || it.isLowerCase() } && w.drop(2).any { it.isLetter() }) {
             w = w[0] + w.substring(1).lowercase()
         }
-        if ("en" in langs) english[w]?.let { w = it }
+        if ("en" in langs && (primary == "en" || !isLowercaseShort(w, langs))) english[w]?.let { w = it }
         if (sentenceStart && w.firstOrNull()?.isLowerCase() == true) w = w.replaceFirstChar { it.uppercaseChar() }
         return w
     }

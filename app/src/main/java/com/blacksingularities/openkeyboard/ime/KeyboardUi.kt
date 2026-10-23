@@ -442,9 +442,9 @@ private fun OneHandedWrapper(c: KeyboardController, content: @Composable () -> U
     BoxWithConstraints(Modifier.fillMaxWidth()) {
         val w = maxWidth * (s.oneHandedWidth / 100f)
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-            if (s.oneHanded == OneHanded.RIGHT) Box(Modifier.weight(1f).height(rowHeight(s, c.layout.mode, false) * c.layout.rows.size)) { side() }
+            if (s.oneHanded == OneHanded.RIGHT) Box(Modifier.weight(1f).height(keysHeight(s, c.layout, false))) { side() }
             Box(Modifier.width(w)) { content() }
-            if (s.oneHanded == OneHanded.LEFT) Box(Modifier.weight(1f).height(rowHeight(s, c.layout.mode, false) * c.layout.rows.size)) { side() }
+            if (s.oneHanded == OneHanded.LEFT) Box(Modifier.weight(1f).height(keysHeight(s, c.layout, false))) { side() }
         }
     }
 }
@@ -486,12 +486,15 @@ private fun Toolbar(c: KeyboardController) {
         if (c.incognito) {
             Icon(Icons.Rounded.VisibilityOff, tr("Tryb incognito"), tint = colors.textDim, modifier = Modifier.padding(horizontal = 8.dp).size(18.dp))
         }
-        Row(
-            Modifier.weight(1f).horizontalScroll(rememberScrollState()),
-            horizontalArrangement = Arrangement.spacedBy(2.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            for (item in c.settings.toolbar) ToolbarButton(c, item)
+        // Ikony wyśrodkowane nad klawiaturą (przewijane, gdy się nie mieszczą).
+        Box(Modifier.weight(1f), contentAlignment = Alignment.Center) {
+            Row(
+                Modifier.horizontalScroll(rememberScrollState()),
+                horizontalArrangement = Arrangement.spacedBy(2.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                for (item in c.settings.toolbar) ToolbarButton(c, item)
+            }
         }
         // Schowek, wynik rachunku, emoji do słowa – także wtedy, gdy widać narzędzia.
         if (c.extras.isNotEmpty()) {
@@ -536,35 +539,37 @@ private fun SuggestionStrip(c: KeyboardController) {
     val auto = c.suggestions.autoCorrect
     Row(Modifier.fillMaxSize(), verticalAlignment = Alignment.CenterVertically) {
         StripIcon(if (c.incognito) Icons.Rounded.VisibilityOff else Icons.Rounded.Apps, tr("Narzędzia")) { c.toolbarOpen = true }
-        // Wszystkie podpowiedzi w przewijanym pasku – najlepsza pierwsza, całe słowa bez „…”.
-        val scroll = remember(items) { androidx.compose.foundation.ScrollState(0) }
-        Row(
-            Modifier.weight(1f).fillMaxHeight().horizontalScroll(scroll),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            items.forEachIndexed { i, sug ->
-                if (i > 0) Box(Modifier.width(1.dp).height(20.dp).background(colors.textDim.copy(alpha = 0.25f)))
-                Box(
-                    Modifier
-                        .fillMaxHeight()
-                        .widthIn(min = 64.dp)
-                        .tap(onLong = { c.blockSuggestion(sug) }, onClick = { c.pickSuggestion(sug) })
-                        .padding(horizontal = 14.dp),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    val isAuto = auto != null && sug.text == auto.text
-                    val strong = i == 0 && (isAuto || c.suggestions.typedValid || sug.kind == SuggestionKind.PREDICTION)
-                    Text(
-                        sug.display,
-                        color = if (sug.kind == SuggestionKind.TYPED) colors.textDim else colors.text,
-                        fontSize = 18.sp,
-                        fontWeight = if (strong) FontWeight.Bold else FontWeight.Normal,
-                        maxLines = 1,
-                        softWrap = false,
-                    )
-                    if (isAuto) {
-                        // Kropka pod słowem: to wstawi spacja (autokorekta).
-                        Box(Modifier.align(Alignment.BottomCenter).padding(bottom = 4.dp).size(4.dp).clip(CircleShape).background(colors.accent))
+        // Najlepsza podpowiedź na środku pierwszego ekranu (druga z lewej, trzecia z prawej),
+        // kolejne – ile ich silnik znajdzie – po przewinięciu w prawo.
+        val ordered = if (items.size >= 2) listOf(items[1], items[0]) + items.drop(2) else items
+        BoxWithConstraints(Modifier.weight(1f).fillMaxHeight()) {
+            val slotW = maxWidth / 3
+            val scroll = remember(items) { androidx.compose.foundation.ScrollState(0) }
+            Row(
+                Modifier.fillMaxHeight().horizontalScroll(scroll),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                if (ordered.size == 1) Spacer(Modifier.width(slotW))
+                ordered.forEach { sug ->
+                    val main = sug === items[0]
+                    Box(
+                        Modifier
+                            .fillMaxHeight()
+                            .widthIn(min = slotW)
+                            .tap(onLong = { c.blockSuggestion(sug) }, onClick = { c.pickSuggestion(sug) })
+                            .padding(horizontal = 8.dp),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        val isAuto = auto != null && sug.text == auto.text
+                        val strong = main && (isAuto || c.suggestions.typedValid || sug.kind == SuggestionKind.PREDICTION)
+                        Text(
+                            sug.display,
+                            color = if (sug.kind == SuggestionKind.TYPED) colors.textDim else colors.text,
+                            fontSize = 18.sp,
+                            fontWeight = if (strong) FontWeight.Bold else FontWeight.Normal,
+                            maxLines = 1,
+                            softWrap = false,
+                        )
                     }
                 }
             }

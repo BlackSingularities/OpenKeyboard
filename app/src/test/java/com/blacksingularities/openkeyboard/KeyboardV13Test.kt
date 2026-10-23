@@ -36,8 +36,8 @@ class KeyboardV13Test {
         val keys = l.rows.flatten().filter { it.type == KeyType.CHAR }.associateBy { it.text }
         // Pod palcem najpierw cyfra, potem znak języka, dopiero dalej symbol.
         assertEquals(listOf("1", "%"), keys.getValue("q").popup.take(2))
-        assertEquals("%", keys.getValue("q").hint)
-        assertEquals("1", keys.getValue("q").hint2)
+        assertEquals("1", keys.getValue("q").hint)
+        assertEquals("%", keys.getValue("q").hint2)
         assertEquals("ą", keys.getValue("a").popup.first())
         assertTrue("@" in keys.getValue("a").popup)
         assertEquals("ł", keys.getValue("l").popup.first())

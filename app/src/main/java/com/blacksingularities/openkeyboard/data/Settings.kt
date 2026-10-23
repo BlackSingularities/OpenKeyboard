@@ -96,7 +96,6 @@ data class KeyboardSettings(
     val autoLanguage: Boolean = true,
     /** Cofnięta poprawka nie wraca, a słowo trafia do słownika. */
     val learnFromUndo: Boolean = true,
-    val suggestionCount: Int = 3,
     val smartQuotes: Boolean = false,
     val autoSpaceAfterPunct: Boolean = true,
     /** Shift w trakcie słowa zmienia jego wielkość: abc → Abc → ABC; przy zaznaczeniu – zaznaczenia. */
