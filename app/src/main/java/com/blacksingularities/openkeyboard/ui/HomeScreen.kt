@@ -514,7 +514,7 @@ private fun ColumnScope.SettingsContent(vm: AppViewModel) {
         SliderRow(Icons.Rounded.SwapHoriz, tr("Szerokość w trybie jednej ręki"), s.oneHandedWidth, 60..95, 1, { "$it%" }, enabled = s.oneHanded != OneHanded.OFF, requires = needs(tr("Tryb jednej ręki"))) { v -> set { it.copy(oneHandedWidth = v) } }
         SliderRow(Icons.Rounded.PictureInPicture, tr("Szerokość klawiatury pływającej"), s.floatingScale, 55..100, 1, { "$it%" }, enabled = s.floating, requires = needs(tr("Pływająca"))) { v -> set { it.copy(floatingScale = v) } }
         SliderRow(Icons.Rounded.KeyboardHide, tr("Odstęp od dołu ekranu"), s.bottomPadding, 0..40, 1, { "$it dp" }) { v -> set { it.copy(bottomPadding = v) } }
-        SliderRow(Icons.Rounded.Timer, tr("Czas przytrzymania"), s.longPressMs, 150..700, 10, { "$it ms" }) { v -> set { it.copy(longPressMs = v) } }
+        SliderRow(Icons.Rounded.Timer, tr("Czas przytrzymania"), s.longPressMs, 100..1000, 10, { "$it ms" }) { v -> set { it.copy(longPressMs = v) } }
     }
 
     SectionHeader(Icons.Rounded.TouchApp, tr("Dotyk i dźwięk"), tr("Wibracja, dźwięk klawiszy oraz gesty palcem – i co mają robić."))
