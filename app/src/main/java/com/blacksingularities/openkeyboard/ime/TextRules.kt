@@ -16,6 +16,12 @@ internal val GERMAN_QUOTE_LANGS = setOf("de", "cs", "sk", "lt")
 /** Nawiasy i cudzysłowy domykane automatycznie (ustawienie „Domykaj nawiasy”). */
 internal val PAIRS = mapOf('(' to ')', '[' to ']', '{' to '}', '„' to '”', '“' to '”', '«' to '»')
 
+/** Znaki, którymi kończy się emotka z dwukropkiem: „:)”, „:(”, „:/”. */
+internal const val EMOTICON_TAILS = ")(/\\|*[]3"
+
+/** Litery emotek z dwukropkiem („:p”, „:D”, „:o”) – tylko gdy stoją same. */
+internal const val EMOTICON_LETTERS = "pPDoOsSxX"
+
 /** Typograficzny cudzysłów za prosty [typed] („"” albo „'”) po znaku [prev] w języku [lang]. */
 internal fun smartQuote(typed: String, prev: Char?, lang: String): String {
     val opening = prev == null || prev.isWhitespace() || prev in "([{„“‘"
