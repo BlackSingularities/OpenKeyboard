@@ -684,6 +684,7 @@ class KeyboardController(val service: OpenKeyboardService) {
         composing.clear()
         keepTyped = false
         learn(final, prev, prev2)
+        rememberCommitted(final, prev)
         selfEdit()
     }
 
@@ -716,7 +717,7 @@ class KeyboardController(val service: OpenKeyboardService) {
             }
             return
         }
-        val atSentenceStart = prev == null
+        val atSentenceStart = prev == null || contextAtSentenceStart
         val stored = if (atSentenceStart && word.length > 1 && word[0].isUpperCase() && word.drop(1).all { it.isLowerCase() }) {
             // Wielka litera tylko z początku zdania – zapamiętaj małą, chyba że słownik zna formę wielką.
             val lower = word.lowercase()
@@ -730,8 +731,28 @@ class KeyboardController(val service: OpenKeyboardService) {
     private fun contextWords(): Pair<String?, String?> {
         val before = ic?.getTextBeforeCursor(120, 0)?.toString() ?: return null to null
         val text = if (composing.isNotEmpty() && before.endsWith(composing)) before.dropLast(composing.length) else before
-        val w = wordsBefore(text, 2)
+        val strict = wordsBefore(text, 2)
+        contextAtSentenceStart = strict.isEmpty()
+        // Aplikacja oddaje jeszcze tekst sprzed zatwierdzenia słowa – kontekst z pamięci.
+        val recent = recentWords
+        if (recent != null && SystemClock.uptimeMillis() - recent.third < 1500 && !text.trimEnd().endsWith(recent.second)) {
+            return recent.first to recent.second
+        }
+        // Po przecinku i kropce kontekstem jest słowo przed nimi.
+        val w = strict.ifEmpty { wordsBefore(text, 2, acrossPunctuation = true) }
         return w.getOrNull(w.size - 2) to w.lastOrNull()
+    }
+
+    /** Czy ostatni [contextWords] był na początku zdania lub po przecinku (bez kontekstu ścisłego). */
+    private var contextAtSentenceStart = true
+
+    /** Ostatnio zatwierdzone słowa (przedostatnie, ostatnie, czas) – gdy pole nie nadąża z tekstem. */
+    private var recentWords: Triple<String?, String, Long>? = null
+
+    private fun rememberCommitted(word: String, prev: String?) {
+        val last = word.split(' ').lastOrNull { it.isNotEmpty() } ?: return
+        val before = word.split(' ').filter { it.isNotEmpty() }.dropLast(1).lastOrNull() ?: prev
+        recentWords = Triple(before, last, SystemClock.uptimeMillis())
     }
 
     private fun previousWord(): String? = contextWords().second
@@ -762,6 +783,7 @@ class KeyboardController(val service: OpenKeyboardService) {
                 composing.clear()
                 if (s.kind == SuggestionKind.TYPED && !incognito && settings.learnWords) UserModel.addWord(s.text)
                 else learn(s.text, prev, prev2)
+                rememberCommitted(s.text, prev)
                 if (!incognito) UserModel.bumpStats {
                     it.copy(suggestionsPicked = it.suggestionsPicked + 1, charsSaved = it.charsSaved + (s.text.length - typed.length).coerceAtLeast(0))
                 }
@@ -1031,6 +1053,7 @@ class KeyboardController(val service: OpenKeyboardService) {
                 refreshSuggestions()
             }
         } else if (composing.isEmpty() && !self && newStart == newEnd) {
+            recentWords = null
             lastCorrection = null
             autoSpace = false
             if (settings.reSuggest && wordSuggestions && internal == null) reSuggestAtCursor()

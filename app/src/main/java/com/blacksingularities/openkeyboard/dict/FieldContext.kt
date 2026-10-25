@@ -84,8 +84,9 @@ class FieldContext private constructor(sentences: List<List<String>>) {
  * Ostatnie słowa bieżącego zdania w [text] (tekst przed kursorem, bez wpisywanego słowa) –
  * od najdalszego. Pusta lista na początku zdania.
  */
-fun wordsBefore(text: String, n: Int): List<String> {
-    val trimmed = text.trimEnd()
+fun wordsBefore(text: String, n: Int, acrossPunctuation: Boolean = false): List<String> {
+    // [acrossPunctuation]: słowo tuż przed przecinkiem czy kropką też jest kontekstem („kot, ” → „kot”).
+    val trimmed = if (acrossPunctuation) text.trimEnd { it.isWhitespace() || it in ",.;:!?…\"”)" } else text.trimEnd()
     if (trimmed.isEmpty() || trimmed.last() in ".!?\n") return emptyList()
     val out = ArrayList<String>()
     var rest = trimmed

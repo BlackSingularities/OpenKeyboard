@@ -122,6 +122,8 @@ class MultilingualTest {
         assertEquals(emptyList<String>(), wordsBefore("Koniec. ", 2))
         assertEquals(emptyList<String>(), wordsBefore("kot, ", 2))
         assertEquals(listOf("don't", "know"), wordsBefore("I don't know ", 2))
+        assertEquals(listOf("kot"), wordsBefore("kot, ", 2, acrossPunctuation = true))
+        assertEquals(listOf("to", "koniec"), wordsBefore("to koniec. ", 2, acrossPunctuation = true))
     }
 
     @Test
