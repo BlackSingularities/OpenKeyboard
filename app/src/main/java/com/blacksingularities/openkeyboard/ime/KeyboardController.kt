@@ -114,6 +114,8 @@ class KeyboardController(val service: OpenKeyboardService) {
     private var suggestionsFor = ""
     private var lastSpaceTime = 0L
     private var autoSpace = false
+    /** Dwukropek właśnie przyklejony do słowa („słowo :” → „słowo: ”) – może jeszcze okazać się emotką. */
+    private var colonGlued = false
     private var lastShiftTap = 0L
     private var lastSelfEdit = 0L
     /** Ostatnia autokorekta: (wpisane, poprawione, separator) – Backspace ją cofa. */
@@ -180,6 +182,7 @@ class KeyboardController(val service: OpenKeyboardService) {
         lastCorrection = null
         keepTyped = false
         autoSpace = false
+        colonGlued = false
         if (!restarting) startFieldContext(info)
         rebuild()
         updateAutoShift()
@@ -392,6 +395,8 @@ class KeyboardController(val service: OpenKeyboardService) {
             text = smartQuote(text, ic.getTextBeforeCursor(1, 0)?.firstOrNull(), writingLanguage)
         }
         val ch = text.first()
+        val wasColon = colonGlued
+        colonGlued = false
         // Spacja po przecinku, wykrzykniku itp., gdy od razu pisze się dalej.
         if (settings.autoSpaceAfterPunct && ch.isLetter() && composing.isEmpty() && fieldKind == FieldKind.TEXT) {
             val before2 = ic.getTextBeforeCursor(2, 0)?.toString().orEmpty()
@@ -401,6 +406,8 @@ class KeyboardController(val service: OpenKeyboardService) {
         // Pisanie chowa ręcznie otwarty pasek narzędzi – wracają podpowiedzi.
         if (wordChar) toolbarOpen = false
         if (wordChar && wordSuggestions) {
+            // Pierwsza litera po przyklejonym dwukropku może być emotką („:p”) – rozstrzyga się po spacji.
+            if (composing.isEmpty() && wasColon) colonGlued = true
             if (composing.isEmpty()) {
                 keepTyped = false
                 lastCorrection = null
@@ -414,10 +421,16 @@ class KeyboardController(val service: OpenKeyboardService) {
             val before2 = ic.getTextBeforeCursor(2, 0)?.toString().orEmpty()
             // Inteligentny przecinek: „słowo ,” → „słowo, ” – znak wraca na koniec słowa.
             val afterWordSpace = before2.length == 2 && before2[1] == ' ' && (before2[0].isLetterOrDigit() || before2[0] in ")\"”’")
-            if (punct && settings.smartPunctuation && fieldKind == FieldKind.TEXT && (autoSpace || afterWordSpace)) {
+            if (wasColon && text.length == 1 && ch in EMOTICON_TAILS && before2 == ": ") {
+                // Emotka: „słowo :” przykleiło dwukropek, a „)” robi z niego „:)” – spacja wraca przed dwukropek.
+                ic.deleteSurroundingText(2, 0)
+                ic.commitText(" :$text", 1)
+                autoSpace = false
+            } else if (punct && settings.smartPunctuation && fieldKind == FieldKind.TEXT && (autoSpace || afterWordSpace)) {
                 if (before2.endsWith(" ")) ic.deleteSurroundingText(1, 0)
                 ic.commitText(text + if (ch in ".,!?:;") " " else "", 1)
                 autoSpace = ch in ".,!?:;"
+                colonGlued = ch == ':'
             } else if (settings.smartPunctuation && fieldKind == FieldKind.TEXT && text.length == 1 && ch in ".," &&
                 before2.lastOrNull()?.isLetter() == true
             ) {
@@ -651,9 +664,24 @@ class KeyboardController(val service: OpenKeyboardService) {
             return
         }
         val typed = composing.toString()
+        if (colonGlued && typed.length == 1 && typed[0] in EMOTICON_LETTERS) {
+            colonGlued = false
+            val before = ic.getTextBeforeCursor(3, 0)?.toString().orEmpty()
+            if (before == ": $typed") {
+                // „słowo: p” → „słowo :p” – litera po przyklejonym dwukropku była emotką.
+                ic.setComposingText("", 1)
+                ic.deleteSurroundingText(2, 0)
+                ic.commitText(" :$typed$separator", 1)
+                composing.clear()
+                keepTyped = false
+                lastCorrection = null
+                selfEdit()
+                return
+            }
+        }
         val (prev2, prev) = contextWords()
         var final = typed
-        if (autocorrect && !keepTyped && settings.autocorrect != Autocorrect.OFF && wordSuggestions) {
+        if (autocorrect && !keepTyped && !isEmoticonWord(typed) && settings.autocorrect != Autocorrect.OFF && wordSuggestions) {
             val s = if (suggestionsFor == typed) suggestions else computeSuggestions(typed, composingAtSentenceStart())
             val auto = s.autoCorrect
             if (auto != null && auto.text != typed) {
@@ -667,7 +695,7 @@ class KeyboardController(val service: OpenKeyboardService) {
             lastCorrection = null
         }
         // Wielkość liter: początek zdania, „HEllo”, angielskie dni i miesiące.
-        if (autocorrect && settings.autoCapitalize && !capsWord && wordSuggestions && final == typed && !keepTyped) {
+        if (autocorrect && !isEmoticonWord(typed) && settings.autoCapitalize && !capsWord && wordSuggestions && final == typed && !keepTyped) {
             val fixed = SmartCase.fix(final, composingAtSentenceStart(), suggestLangs, primaryLanguage)
             if (fixed != final) {
                 final = fixed
