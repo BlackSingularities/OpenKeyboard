@@ -681,8 +681,19 @@ private fun PanelBar(c: KeyboardController) {
         Panel.SYMBOLS -> tr("Symbole")
         Panel.KEYS -> ""
     }
-    Row(Modifier.fillMaxSize().padding(horizontal = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-        Text(title, color = colors.text, fontSize = 15.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(start = 12.dp).weight(1f))
+    // Tytuł na środku całego paska; po bokach miejsce na ikony.
+    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+        Text(
+            title,
+            color = colors.text,
+            fontSize = 15.sp,
+            fontWeight = FontWeight.Bold,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.padding(horizontal = 96.dp),
+        )
+    }
+    Row(Modifier.fillMaxSize().padding(horizontal = 4.dp), horizontalArrangement = Arrangement.End, verticalAlignment = Alignment.CenterVertically) {
         if (c.panel == Panel.EMOJI) StripIcon(Icons.Rounded.Search, tr("Szukaj emoji")) { c.openInternal(InternalTarget.EMOJI_SEARCH) }
         if (c.panel == Panel.CLIPBOARD) {
             StripIcon(Icons.Rounded.Tune, tr("Ustawienia schowka")) { c.openApp("clipboard") }
