@@ -262,6 +262,12 @@ object Suggest {
                 if (best == null || sc > best.second) best = wl.words[i] to sc
             }
         }
+        // Jedna litera za dużo – zahaczony sąsiedni klawisz („kikmjestes” → „kim jesteś”).
+        for (j in part.indices) {
+            val e = lookup(part.removeRange(j, j + 1), langs) ?: continue
+            val sc = e.second - 3f
+            if (best == null || sc > best.second) best = e.first to sc
+        }
         return best
     }
 
