@@ -1,6 +1,7 @@
 package com.blacksingularities.openkeyboard
 
 import com.blacksingularities.openkeyboard.dict.Dictionaries
+import com.blacksingularities.openkeyboard.dict.Proximity
 import com.blacksingularities.openkeyboard.dict.Suggest
 import com.blacksingularities.openkeyboard.dict.WordList
 import com.blacksingularities.openkeyboard.features.SmartCase
@@ -88,5 +89,13 @@ class KeyboardV14Test {
         // Jednoliterowe słowo i litera zamiast spacji, bez polskich znaków.
         assertEquals("w tej", Suggest.splitWords("wbtej", langs).first())
         assertEquals("i rozumieć", Suggest.splitWords("ibrozumiec", langs).first())
+    }
+
+    @Test
+    fun missedSpaceWithExtraLetter() {
+        Dictionaries.putForTest("yy", WordList.parse("yy", sequenceOf("rzadkie	1", "kim	4000", "jesteś	3500", "jestem	3000")))
+        val langs = listOf("yy")
+        val prox = Proximity { _, _ -> false }
+        assertEquals("kim jesteś", Suggest.splitWords("kikmjestes", langs, prox).first())
     }
 }
