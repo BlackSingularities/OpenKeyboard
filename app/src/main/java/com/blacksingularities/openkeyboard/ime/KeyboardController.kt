@@ -681,7 +681,7 @@ class KeyboardController(val service: OpenKeyboardService) {
         }
         val (prev2, prev) = contextWords()
         var final = typed
-        if (autocorrect && !keepTyped && settings.autocorrect != Autocorrect.OFF && wordSuggestions) {
+        if (autocorrect && !keepTyped && !isEmoticonWord(typed) && settings.autocorrect != Autocorrect.OFF && wordSuggestions) {
             val s = if (suggestionsFor == typed) suggestions else computeSuggestions(typed, composingAtSentenceStart())
             val auto = s.autoCorrect
             if (auto != null && auto.text != typed) {
@@ -695,7 +695,7 @@ class KeyboardController(val service: OpenKeyboardService) {
             lastCorrection = null
         }
         // Wielkość liter: początek zdania, „HEllo”, angielskie dni i miesiące.
-        if (autocorrect && settings.autoCapitalize && !capsWord && wordSuggestions && final == typed && !keepTyped) {
+        if (autocorrect && !isEmoticonWord(typed) && settings.autoCapitalize && !capsWord && wordSuggestions && final == typed && !keepTyped) {
             val fixed = SmartCase.fix(final, composingAtSentenceStart(), suggestLangs, primaryLanguage)
             if (fixed != final) {
                 final = fixed

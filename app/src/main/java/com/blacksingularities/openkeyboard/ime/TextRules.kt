@@ -86,3 +86,8 @@ internal fun wordLengthBefore(text: String): Int {
 }
 
 internal fun String.dropLastGrapheme(): String = dropLast(graphemeLengthBefore(this))
+
+/** Emotka pisana literami („xD”, „XDD”, „xP”) – bez autokorekty i zmiany wielkości liter. */
+internal fun isEmoticonWord(word: String): Boolean = EMOTICON_WORD.matches(word)
+
+private val EMOTICON_WORD = Regex("""[xX](?:[dD]+|[pP]+)""")
