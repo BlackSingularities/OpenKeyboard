@@ -1,5 +1,11 @@
 # Zmiany
 
+## 1.6.7
+
+- Nowa strona aplikacji z opisem funkcji.
+- Jednolita informacja o autorze (Adam Rędzikowski · redzikowski.com) i przycisk „Postaw kawę”.
+- Usunięte odnośniki do repozytorium z interfejsu.
+
 ## 1.6.1
 - **Ustawienia bez martwych opcji**: opcje, które w danej chwili nic nie zmieniają, są przygaszone i nieaktywne, z podpisem, co je włącza – np. rodzaj i głośność dźwięku przy wyłączonym dźwięku, siła wibracji bez wibracji, autokorekta i podpowiedzi emoji bez podpowiedzi, ślad gestu bez pisania gestem, pojemność schowka bez historii, szerokości trybu jednej ręki i klawiatury pływającej, przerwa klawiatury dzielonej, klawisz i gest zmiany języka, gdy nie ma czego przełączać, opcje nauki przy „Zawsze incognito”, przytrzymanie przecinka bez klawisza przecinka.
 - Wybór rodzaju dźwięku nie włącza już dźwięku sam z siebie.
