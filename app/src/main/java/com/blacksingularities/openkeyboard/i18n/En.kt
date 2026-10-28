@@ -257,7 +257,7 @@ internal val En: Map<String, String> = hashMapOf(
     "Tej operacji nie można cofnąć." to "This can't be undone.",
     "OpenKeyboard – otwarta klawiatura dla Androida" to "OpenKeyboard – an open keyboard for Android",
     "Licencja MIT · bez reklam i śledzenia" to "MIT license · no ads, no tracking",
-    "Projekt i wykonanie: redzikowski.com" to "Design and development: redzikowski.com",
+    "Pomysł i wykonanie: Adam Rędzikowski · redzikowski.com" to "Idea and development: Adam Rędzikowski · redzikowski.com",
     "Postaw kawę" to "Buy me a coffee",
     "Włącz języki, w których piszesz – podpowiedzi działają we wszystkich naraz. Polski i angielski mają słowniki wbudowane, pozostałe pobierzesz jednym dotknięciem (ok. 0,3 MB, 50 tys. najczęstszych słów)." to
         "Enable the languages you type in – suggestions work in all of them at once. Polish and English dictionaries are built in, the rest download with one tap (about 0.3 MB, the 50k most common words).",

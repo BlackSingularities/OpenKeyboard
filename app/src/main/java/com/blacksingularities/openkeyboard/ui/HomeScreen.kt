@@ -635,21 +635,11 @@ private fun About() {
         Text(tr("OpenKeyboard – otwarta klawiatura dla Androida"), fontSize = 13.sp, color = Color.White)
         Text(tr("Licencja MIT · bez reklam i śledzenia"), fontSize = 11.sp, color = Palette.TextDim)
         Text(
-            "github.com/BlackSingularities/OpenKeyboard",
-            fontSize = 12.sp,
-            color = Color.White,
-            fontWeight = FontWeight.SemiBold,
-            modifier = Modifier
-                .padding(top = 6.dp)
-                .clip(RoundedCornerShape(8.dp))
-                .clickable { sys.openUrl("https://github.com/BlackSingularities/OpenKeyboard") }
-                .padding(horizontal = 8.dp, vertical = 4.dp),
-        )
-        Text(
-            tr("Projekt i wykonanie: redzikowski.com"),
+            tr("Pomysł i wykonanie: Adam Rędzikowski · redzikowski.com"),
             fontSize = 12.sp,
             color = Palette.TextDim,
             modifier = Modifier
+                .padding(top = 6.dp)
                 .clip(RoundedCornerShape(8.dp))
                 .clickable { sys.openUrl("https://redzikowski.com") }
                 .padding(horizontal = 8.dp, vertical = 4.dp),

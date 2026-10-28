@@ -6,7 +6,7 @@
 
 ## Pobieranie
 
-Najnowszy plik jest zawsze w **[Releases → Latest](../../releases/latest)**. Każdy merge do `main` buduje i publikuje nową wersję, a aplikacja sama proponuje aktualizację i instaluje ją jednym dotknięciem.
+Najnowszy plik jest zawsze w **[Releases → Latest](../../releases/latest)**. Każdy wypchnięty tag `vX.Y.Z` buduje i publikuje nową wersję, a aplikacja sama proponuje aktualizację i instaluje ją jednym dotknięciem.
 
 1. Pobierz `OpenKeyboard-x.y.z.apk` i zainstaluj (Android 10 lub nowszy).
 2. Otwórz aplikację i przejdź przez „Pierwsze kroki”: włącz klawiaturę i ustaw ją jako domyślną.
