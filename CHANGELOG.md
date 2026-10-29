@@ -1,5 +1,9 @@
 # Zmiany
 
+## 1.6.9
+
+- Dopasowane kolorystycznie tła ikon aplikacji i spójne zasoby graficzne.
+
 ## 1.6.7
 
 - Nowa strona aplikacji z opisem funkcji.
