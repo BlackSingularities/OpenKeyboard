@@ -586,7 +586,7 @@ private fun ColumnScope.SettingsContent(vm: AppViewModel) {
         }
     }
 
-    SectionHeader(Icons.Rounded.Settings, tr("Ogólne"), tr("Język aplikacji, aktualizacje z GitHuba i informacje o aplikacji."))
+    SectionHeader(Icons.Rounded.Settings, tr("Ogólne"), tr("Język aplikacji, aktualizacje i informacje o aplikacji."))
     Group(null) {
         CompactChoice(
             Icons.Rounded.Language,
@@ -599,7 +599,7 @@ private fun ColumnScope.SettingsContent(vm: AppViewModel) {
     }
     TileGrid(
         listOf(
-            Tile(Icons.Rounded.SystemUpdate, tr("Aktualizacje"), tr("Sprawdzaj nowe wersje na GitHubie przy uruchomieniu"), s.autoUpdate) { v -> set { it.copy(autoUpdate = v) } },
+            Tile(Icons.Rounded.SystemUpdate, tr("Aktualizacje"), tr("Sprawdzaj nowe wersje przy uruchomieniu"), s.autoUpdate) { v -> set { it.copy(autoUpdate = v) } },
             Tile(Icons.Rounded.Notifications, tr("Powiadomienia"), tr("Zezwól na powiadomienie po aktualizacji"), false) { sys.requestNotifications() },
         ),
     )

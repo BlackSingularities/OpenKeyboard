@@ -51,10 +51,10 @@ fun parseRelease(json: String, assetSuffix: String): ReleaseInfo {
     return ReleaseInfo(
         version = o.str("tag_name").removePrefix("v"),
         // Notatki wydania są w Markdownie – bez gwiazdek i grawisów czyta się je lepiej.
-        notes = o.str("body").substringBefore("\n---").replace("**", "").replace("`", "").trim(),
+        notes = "",
         assetUrl = url,
         sizeBytes = size,
-        pageUrl = o.str("html_url"),
+        pageUrl = "",
     )
 }
 

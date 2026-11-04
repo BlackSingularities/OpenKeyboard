@@ -562,7 +562,6 @@ fun AboutSheet(vm: AppViewModel) {
     Panel(tr("O aplikacji"), onClose = { vm.sheet = null }) {
         Group(tr("Dane i usługi")) {
             ActionRow(Icons.Rounded.Translate, "FrequencyWords (Hermit Dave)", tr("Listy częstości słów z napisów OpenSubtitles · CC-BY-SA 4.0")) {
-                sys.openUrl("https://github.com/hermitdave/FrequencyWords")
             }
             ActionRow(Icons.Rounded.EmojiEmotions, "Unicode Emoji", tr("Lista emoji, nazwy i odcienie skóry (emoji-test.txt) · licencja Unicode")) {
                 sys.openUrl("https://unicode.org/emoji/")
@@ -572,7 +571,7 @@ fun AboutSheet(vm: AppViewModel) {
         }
         Group(tr("Prywatność")) {
             Text(
-                tr("Wszystko, czego klawiatura się uczy (słowa, pary słów, schowek, statystyki), zostaje na telefonie. Aplikacja łączy się z internetem tylko, by pobrać słownik albo sprawdzić aktualizację na GitHubie."),
+                tr("Wszystko, czego klawiatura się uczy (słowa, pary słów, schowek, statystyki), zostaje na telefonie. Aplikacja łączy się z internetem tylko, by pobrać słownik albo sprawdzić aktualizację."),
                 color = Palette.TextDim,
                 fontSize = 12.sp,
                 lineHeight = 17.sp,

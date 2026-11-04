@@ -247,7 +247,7 @@ internal val En: Map<String, String> = hashMapOf(
     "Język aplikacji" to "App language",
     "Systemowy" to "System",
     "Aktualizacje" to "Updates",
-    "Sprawdzaj nowe wersje na GitHubie przy uruchomieniu" to "Check GitHub for new versions on start",
+    "Sprawdzaj nowe wersje przy uruchomieniu" to "Check for new versions on start",
     "Powiadomienia" to "Notifications",
     "Zezwól na powiadomienie po aktualizacji" to "Allow a notification after an update",
     "O aplikacji i źródłach danych" to "About & data sources",
@@ -317,8 +317,8 @@ internal val En: Map<String, String> = hashMapOf(
     "Rozpoznawanie mowy systemu" to "System speech recognition",
     "Dyktowanie korzysta z usługi zainstalowanej w telefonie" to "Voice typing uses the service installed on the phone",
     "Prywatność" to "Privacy",
-    "Wszystko, czego klawiatura się uczy (słowa, pary słów, schowek, statystyki), zostaje na telefonie. Aplikacja łączy się z internetem tylko, by pobrać słownik, sprawdzić aktualizację na GitHubie albo przetłumaczyć tekst, gdy o to poprosisz." to
-        "Everything the keyboard learns (words, word pairs, clipboard, statistics) stays on the phone. The app goes online only to download a dictionary, check GitHub for updates or translate text when you ask.",
+    "Wszystko, czego klawiatura się uczy (słowa, pary słów, schowek, statystyki), zostaje na telefonie. Aplikacja łączy się z internetem tylko, by pobrać słownik, sprawdzić aktualizację albo przetłumaczyć tekst, gdy o to poprosisz." to
+        "Everything the keyboard learns (words, word pairs, clipboard, statistics) stays on the phone. The app goes online only to download a dictionary, check for updates or translate text when you ask.",
     "Słowniki zajmują {0} KB" to "Dictionaries use {0} KB",
 
     // aktualizacje
@@ -481,7 +481,7 @@ internal val En: Map<String, String> = hashMapOf(
     "Gradient tła" to "Background gradient",
     "Jak klawiatura pomaga pisać: poprawia literówki, podpowiada słowa, uczy się Twojego stylu." to "How the keyboard helps you type: fixes typos, suggests words, learns your style.",
     "Jakie klawisze są na klawiaturze, jej rozmiar i położenie na ekranie." to "Which keys the keyboard has, its size and position on screen.",
-    "Język aplikacji, aktualizacje z GitHuba i informacje o aplikacji." to "App language, updates from GitHub and app information.",
+    "Język aplikacji, aktualizacje i informacje o aplikacji." to "App language, updates and app information.",
     "Klik – krótki i suchy" to "Click – short and dry",
     "Kolory, kształt klawiszy i to, co na nich widać. Zmiany widać od razu w podglądzie motywu." to "Colors, key shape and what's shown on the keys. Changes show up right away in the theme preview.",
     "Kształt klawiszy" to "Key shape",
@@ -561,7 +561,7 @@ internal val En: Map<String, String> = hashMapOf(
     "Twoje teksty – skróty i schowek" to "Your texts – shortcuts and clipboard",
     "W osobnym rzędzie nad literami" to "In a separate row above the letters",
     "Wstaw datę i czas" to "Insert date and time",
-    "Wszystko, czego klawiatura się uczy (słowa, pary słów, schowek, statystyki), zostaje na telefonie. Aplikacja łączy się z internetem tylko, by pobrać słownik albo sprawdzić aktualizację na GitHubie." to "Everything the keyboard learns (words, word pairs, clipboard, statistics) stays on the phone. The app goes online only to download a dictionary or check GitHub for updates.",
+    "Wszystko, czego klawiatura się uczy (słowa, pary słów, schowek, statystyki), zostaje na telefonie. Aplikacja łączy się z internetem tylko, by pobrać słownik albo sprawdzić aktualizację." to "Everything the keyboard learns (words, word pairs, clipboard, statistics) stays on the phone. The app goes online only to download a dictionary or check for updates.",
     "Z ?123" to "With ?123",
     "Z palety" to "From palette",
     "Znaki na klawiszach liter mają kolor akcentu" to "Letter key labels use the accent color",
