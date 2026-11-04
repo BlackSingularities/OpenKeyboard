@@ -120,6 +120,7 @@ internal val En: Map<String, String> = hashMapOf(
     "Przywrócono kopię zapasową" to "Backup restored",
     "Nie udało się wczytać: {0}" to "Couldn't load: {0}",
     "Brak połączenia" to "No connection",
+    "Brak połączenia z serwerem słowników" to "Can't reach the dictionary server",
     "Pobieranie nie powiodło się" to "Download failed",
     "Instalacja nie powiodła się" to "Installation failed",
     "Wersja {0} · {1} języków" to "Version {0} · {1} languages",

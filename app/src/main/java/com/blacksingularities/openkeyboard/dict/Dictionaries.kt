@@ -3,6 +3,7 @@ package com.blacksingularities.openkeyboard.dict
 import android.content.Context
 import com.blacksingularities.openkeyboard.BuildConfig
 import com.blacksingularities.openkeyboard.data.Languages
+import com.blacksingularities.openkeyboard.i18n.tr
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -155,7 +156,7 @@ object Dictionaries {
                 }
                 loaded.remove(code)
                 load(code)
-            }.onFailure { setState(code, DictState.Failed(it.message ?: it.javaClass.simpleName)) }
+            }.onFailure { setState(code, DictState.Failed(if (it is java.io.IOException) tr("Brak połączenia z serwerem słowników") else (it.message ?: it.javaClass.simpleName))) }
         }
     }
 
