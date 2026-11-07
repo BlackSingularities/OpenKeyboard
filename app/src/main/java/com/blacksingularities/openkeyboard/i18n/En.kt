@@ -116,6 +116,8 @@ internal val En: Map<String, String> = hashMapOf(
     "Wstaw" to "Insert",
     "Tu pojawią się ostatnio używane emoji" to "Recently used emoji will appear here",
     "Usuń" to "Delete",
+    "Udostępnij" to "Share",
+    "Zgłoś błąd lub sugestię" to "Report a bug or suggest a feature",
     "Historia schowka jest wyłączona. Włącz ją w ustawieniach (ikona obok)." to "Clipboard history is off. Turn it on in settings (icon next to this).",
     "Skopiuj coś – tekst pojawi się tutaj. Przytrzymaj wpis, aby go przypiąć lub usunąć." to "Copy something – it will appear here. Long-press an entry to pin or delete it.",
     "Przypięte" to "Pinned",

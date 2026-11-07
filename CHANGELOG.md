@@ -1,5 +1,10 @@
 # Zmiany
 
+## 1.8.0
+
+- Zgłaszanie błędów i sugestii: nowa pozycja „Zgłoś błąd lub sugestię” – opis trafia prosto do autora przez redzikowski.com, e-mail jest opcjonalny.
+- Po nieoczekiwanym zamknięciu aplikacja przy następnym uruchomieniu proponuje wysłanie raportu o błędzie – tylko za zgodą użytkownika.
+
 ## 1.7.0
 
 - **Fizyczna klawiatura**: podpowiedzi i autokorekta także przy pisaniu na klawiaturze Bluetooth lub w etui, Ctrl+Spacja zmienia język, opcja chowania klawiszy ekranowych.

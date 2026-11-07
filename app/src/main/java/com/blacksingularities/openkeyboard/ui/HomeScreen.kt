@@ -272,6 +272,7 @@ private fun CrashCard() {
     val sys = LocalSystem.current
     val safe by CrashLog.safeMode.collectAsState()
     val report by CrashLog.lastReport.collectAsState()
+    var sendReport by remember { mutableStateOf(false) }
     if (!safe && report == null) return
     Group(if (safe) tr("Tryb awaryjny") else tr("Klawiatura uległa awarii")) {
         Text(
@@ -288,8 +289,15 @@ private fun CrashCard() {
         ) {
             if (safe) PillButton(tr("Przywróć moje ustawienia")) { Prefs.exitSafeMode() }
             report?.let { r ->
-                PillButton(tr("Wyślij raport"), primary = !safe) {
+                PillButton(tr("Wyślij raport"), primary = !safe) { sendReport = true }
+                PillButton(tr("Udostępnij"), primary = false) {
                     sys.shareText(r + "\n\n" + tr("Opisz, co działo się przed awarią:") + "\n")
+                }
+                if (sendReport) {
+                    com.blacksingularities.openkeyboard.feedback.CrashReportDialog(
+                        stack = r,
+                        onDismiss = { sendReport = false },
+                    )
                 }
                 PillButton(tr("Usuń"), primary = false) { CrashLog.clearReports() }
             }
@@ -703,6 +711,17 @@ private fun About() {
                 .clickable { sys.openUrl("mailto:kontakt@redzikowski.com") }
                 .padding(horizontal = 8.dp, vertical = 4.dp),
         )
+        com.blacksingularities.openkeyboard.feedback.FeedbackEntry { open ->
+            Text(
+                tr("Zgłoś błąd lub sugestię"),
+                fontSize = 12.sp,
+                color = Palette.TextDim,
+                modifier = Modifier
+                    .clip(RoundedCornerShape(8.dp))
+                    .clickable { open() }
+                    .padding(horizontal = 8.dp, vertical = 4.dp),
+            )
+        }
         Text(
             "☕  " + tr("Postaw kawę"),
             fontSize = 13.sp,
