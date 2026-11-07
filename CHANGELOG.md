@@ -1,5 +1,17 @@
 # Zmiany
 
+## 1.7.0
+
+- **Fizyczna klawiatura**: podpowiedzi i autokorekta także przy pisaniu na klawiaturze Bluetooth lub w etui, Ctrl+Spacja zmienia język, opcja chowania klawiszy ekranowych.
+- **Wklejanie obrazów**: zdjęcia, GIF-y i naklejki ze schowka trafiają do aplikacji, które je przyjmują (przycisk „Wklej obraz” w panelu schowka).
+- **Tablety i telefony składane**: nowy tryb klawiatury dzielonej „Szeroki ekran” (domyślny).
+- **Własny układ liter**: edytor trzech rzędów dla każdego języka, ogonki zostają pod przytrzymaniem.
+- **Synchronizacja przez folder**: wyuczone słowa i skróty scalane między urządzeniami przez wybrany folder (np. Syncthing, Nextcloud), bez żadnej chmury aplikacji.
+- **Tryb offline**: jeden przełącznik wyłącza wszystkie połączenia z internetem.
+- **Polityka prywatności** w aplikacji: co zostaje w telefonie, z czym aplikacja się łączy i do czego służą uprawnienia.
+- **Raporty awarii i tryb awaryjny**: raport zapisany tylko w telefonie, do wysłania jednym dotknięciem; po serii awarii klawiatura startuje na ustawieniach domyślnych, aż przywrócisz swoje.
+- Słownik, statystyki i schowek nie trafiają już do kopii zapasowej Androida w chmurze ani na nowy telefon.
+
 ## 1.6.11
 
 - Bez żadnych wzmianek o GitHubie w aplikacji: nowy adres serwera aktualizacji, komunikaty błędów bez nazw zewnętrznych serwerów.

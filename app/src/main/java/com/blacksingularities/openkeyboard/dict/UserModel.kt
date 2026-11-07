@@ -305,6 +305,38 @@ object UserModel {
 
     fun exportJson(): String = json.encodeToString(UserData.serializer(), snapshot())
 
+    /** Dane do synchronizacji – bez statystyk, ostatnich emoji i języków aplikacji. */
+    fun exportSyncJson(): String = json.encodeToString(
+        UserData.serializer(),
+        snapshot().copy(stats = Stats(), emojiRecent = emptyList(), appLanguages = emptyMap()),
+    )
+
+    /**
+     * Scalanie z innym urządzeniem (synchronizacja przez folder): liczniki – większa wartość
+     * (wielokrotne scalanie niczego nie podwaja), zablokowane i odrzucone – suma, skróty – lokalne
+     * mają pierwszeństwo. Statystyki i ostatnie emoji zostają lokalne.
+     */
+    fun mergeJson(raw: String) {
+        val data = json.decodeFromString(UserData.serializer(), raw)
+        fun mergeNested(into: HashMap<String, HashMap<String, Int>>, from: Map<String, Map<String, Int>>) {
+            for ((k, m) in from) {
+                val target = into.getOrPut(k) { HashMap() }
+                for ((w, n) in m) target[w] = maxOf(target[w] ?: 0, n)
+            }
+        }
+        synchronized(this) {
+            blocked.addAll(data.blocked)
+            rejected.addAll(data.rejected)
+            for ((w, n) in data.words) if (w !in blocked) words[w] = maxOf(words[w] ?: 0, n)
+            blocked.forEach { words.remove(it) }
+            mergeNested(bigrams, data.bigrams)
+            mergeNested(trigrams, data.trigrams)
+        }
+        val local = _shortcuts.value
+        _shortcuts.value = local + data.shortcuts.filter { r -> local.none { it.trigger.equals(r.trigger, ignoreCase = true) } }
+        scheduleSave()
+    }
+
     fun importJson(raw: String) {
         val data = json.decodeFromString(UserData.serializer(), raw)
         synchronized(this) {

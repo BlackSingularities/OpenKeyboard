@@ -42,9 +42,17 @@ android {
             isMinifyEnabled = true
             isShrinkResources = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
-            signingConfig = if (keystorePath != null && file(keystorePath).exists()) {
+            val hasKeystore = keystorePath != null && file(keystorePath).exists()
+            // W CI wydanie bez prawdziwego klucza byłoby podpisane kluczem debug,
+            // a takiego APK nie da się później zaktualizować – przerywamy build.
+            val releaseRequested = gradle.startParameter.taskNames.any { it.contains("Release", ignoreCase = true) }
+            if (!hasKeystore && releaseRequested && System.getenv("CI") == "true") {
+                throw GradleException("Brak keystore'a (SIGNING_KEYSTORE_PATH) – wydanie nie zostanie podpisane kluczem debug.")
+            }
+            signingConfig = if (hasKeystore) {
                 signingConfigs.getByName("release")
             } else {
+                logger.warn("OpenKeyboard: brak keystore'a, lokalny build release podpisany kluczem debug.")
                 signingConfigs.getByName("debug")
             }
         }
@@ -85,6 +93,7 @@ dependencies {
     val composeBom = platform("androidx.compose:compose-bom:2026.01.00")
 
     implementation("androidx.core:core-ktx:1.17.0")
+    implementation("androidx.documentfile:documentfile:1.1.0")
     implementation("androidx.activity:activity-compose:1.11.0")
     implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.9.4")
     implementation("androidx.lifecycle:lifecycle-runtime-compose:2.9.4")

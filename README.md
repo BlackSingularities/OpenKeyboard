@@ -39,6 +39,8 @@ Najnowszy plik jest zawsze w **[Releases → Latest](../../releases/latest)**. K
 - **Tryb jednej ręki**, **klawiatura pływająca** (przesuwana nakładka), klawiatura numeryczna, szybkie ustawienia (przytrzymaj kafelek – wszystkie opcje pod palcem).
 - **Incognito** automatycznie w polach haseł i w trybie prywatnym przeglądarek.
 - **Sprawdzanie pisowni** dla całego systemu na tych samych słownikach.
+- **Fizyczna klawiatura** (Bluetooth, etui, Chromebook): podpowiedzi i autokorekta, Ctrl+Spacja zmienia język.
+- **Wklejanie obrazów** ze schowka (zdjęcia, GIF-y, naklejki) do aplikacji, które je przyjmują.
 
 ### Wygląd i ustawienia
 - 18 motywów (w tym płaski czarny bez pól i obramowań oraz gradientowe), 10 akcentów i dowolny kolor akcentu (także dla liter), motyw dzienny i nocny, klawisze pełne / z obwódką / płaskie / 3D.
@@ -47,13 +49,14 @@ Najnowszy plik jest zawsze w **[Releases → Latest](../../releases/latest)**. K
 - Konfigurowalne gesty (spacja w bok / w górę / przytrzymanie, przeciągnięcie w dół, przytrzymanie Enter i przecinka), klawiatura dzielona w poziomie, 3 lub 5 podpowiedzi.
 - Wysokość, odstępy, zaokrąglenie, wielkość znaków, siła wibracji, dźwięk, czas przytrzymania – z podglądem na żywo.
 - Interfejs ustawień w stylu OpenViewPDF, po polsku i angielsku.
-- Kopia zapasowa (ustawienia, słownik, skróty, przypięte wpisy schowka) do pliku JSON.
+- Kopia zapasowa (ustawienia, słownik, skróty, przypięte wpisy schowka) do pliku JSON oraz synchronizacja słownika przez wybrany folder (Syncthing, Nextcloud).
+- Własny układ liter dla każdego języka, klawiatura dzielona na tabletach i telefonach składanych.
+- Tryb „Całkowicie offline”, lokalne raporty awarii z trybem awaryjnym – zobacz [politykę prywatności](PRIVACY.md).
 - Aktualizacje prosto z GitHub Releases w aplikacji.
 
 ## Źródła danych
 - **[FrequencyWords](https://github.com/hermitdave/FrequencyWords)** (Hermit Dave) – 50 tys. najczęstszych słów na język, CC-BY-SA 4.0. Polski i angielski wbudowane, pozostałe pobierane w aplikacji.
 - **[Unicode emoji-test.txt](https://unicode.org/emoji/)** – emoji, nazwy, odcienie skóry.
-- **[MyMemory](https://mymemory.translated.net/)** – tłumaczenia (tylko na żądanie).
 
 ## Architektura
 

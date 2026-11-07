@@ -70,7 +70,19 @@ private fun symbolKey(s: String) = Key(KeyType.CHAR, s, popup = symbolPopups[s]?
 /** Okres wpisany kropką: znaki interpunkcji pod przytrzymaniem kropki. */
 private val periodPopup = listOf("?", "!", ",", "'", "\"", ":", ";", "-", "(", ")", "/", "@", "&", "#", "%", "…")
 
+/** Identyfikator własnego układu liter (rzędy w [KeyboardSettings.customRows]). */
+const val CUSTOM_LAYOUT = "custom"
+
+/** Własny układ: dokładnie 3 rzędy, każdy 1–12 znaków, bez spacji i bez powtórzeń. */
+fun validCustomRows(rows: List<String>): Boolean {
+    if (rows.size != 3) return false
+    val all = rows.joinToString("")
+    return rows.all { it.length in 1..12 && it.none(Char::isWhitespace) } && all.toSet().size == all.length
+}
+
 object Layouts {
+    /** Rzędy liter wbudowanego układu (punkt wyjścia dla edytora własnego układu). */
+    fun rowsFor(id: String): List<String> = letterRows[id] ?: letterRows.getValue("qwerty")
 
     /**
      * Układ jak w klawiaturze dla bieżących ustawień: litery wg [KeyboardSettings.activeLanguage],
@@ -105,7 +117,8 @@ object Layouts {
     private fun alpha(lang: Lang, s: KeyboardSettings, field: FieldKind, languageCount: Int, accentLangs: List<Lang>): KeyboardLayout {
         val accents = mergedAccents(accentLangs)
         val layoutId = s.layoutOverride[lang.code] ?: lang.layout
-        val rows = letterRows[layoutId] ?: letterRows.getValue("qwerty")
+        val rows = (if (layoutId == CUSTOM_LAYOUT) s.customRows[lang.code]?.takeIf { validCustomRows(it) } else null)
+            ?: letterRows[layoutId] ?: letterRows[lang.layout] ?: letterRows.getValue("qwerty")
         val units = maxOf(rows[0].length, rows[1].length, rows[2].length + 3, 10).toFloat()
         val out = mutableListOf<List<Key>>()
         // W polu hasła cyfry zawsze pod ręką.

@@ -12,6 +12,7 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.blacksingularities.openkeyboard.data.KeyboardSettings
 import com.blacksingularities.openkeyboard.data.Prefs
+import com.blacksingularities.openkeyboard.data.FolderSync
 import com.blacksingularities.openkeyboard.dict.UserModel
 import com.blacksingularities.openkeyboard.features.Clip
 import com.blacksingularities.openkeyboard.features.ClipboardHistory
@@ -140,6 +141,39 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
+    // ───────────────────────── synchronizacja przez folder ─────────────────────────
+
+    var syncing by mutableStateOf(false)
+        private set
+
+    fun setSyncFolder(uri: Uri) {
+        update { it.copy(syncFolder = uri.toString()) }
+        syncNow()
+    }
+
+    fun clearSyncFolder() {
+        val old = Prefs.current.syncFolder
+        if (old.isNotEmpty()) runCatching {
+            ctx.contentResolver.releasePersistableUriPermission(
+                Uri.parse(old),
+                android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION or android.content.Intent.FLAG_GRANT_WRITE_URI_PERMISSION,
+            )
+        }
+        update { it.copy(syncFolder = "") }
+    }
+
+    fun syncNow(silent: Boolean = false) {
+        val folder = Prefs.current.syncFolder
+        if (folder.isEmpty() || syncing) return
+        syncing = true
+        viewModelScope.launch {
+            runCatching { withContext(Dispatchers.IO) { FolderSync.sync(ctx, folder) } }
+                .onSuccess { if (!silent) toast(tr("Zsynchronizowano – scalono urządzenia: {0}", it)) }
+                .onFailure { if (!silent) toast(tr("Synchronizacja nie powiodła się: {0}", it.message ?: "")) }
+            syncing = false
+        }
+    }
+
     // ───────────────────────── aktualizacje (GitHub Releases) ─────────────────────────
 
     var update by mutableStateOf<UpdateState>(UpdateState.Idle)
@@ -164,7 +198,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun checkUpdateIfDue() {
-        if (!Prefs.current.autoUpdate) return
+        if (!Prefs.current.autoUpdate || Prefs.current.offline) return
         val now = System.currentTimeMillis()
         if (now - lastUpdateCheck < 6 * 3600_000L) return
         if (update is UpdateState.Downloading || update is UpdateState.Ready || update is UpdateState.Installing) return
@@ -223,5 +257,6 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         applyLanguage()
         refreshImeState()
         checkUpdateIfDue()
+        syncNow(silent = true)
     }
 }

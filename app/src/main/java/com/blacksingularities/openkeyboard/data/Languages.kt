@@ -115,6 +115,7 @@ object Languages {
         "ru", "uk", "be" -> "ЙЦУКЕН"
         "el" -> "ΕΡΤΥ"
         "tr" -> "Türkçe Q"
+        "custom" -> com.blacksingularities.openkeyboard.i18n.tr("Własny")
         else -> id.uppercase()
     }
 

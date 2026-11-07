@@ -56,7 +56,7 @@ import androidx.compose.ui.unit.sp
 import com.blacksingularities.openkeyboard.data.GestureAction
 import com.blacksingularities.openkeyboard.data.KeyFont
 import com.blacksingularities.openkeyboard.data.KeyStyle
-import com.blacksingularities.openkeyboard.data.SplitMode
+import com.blacksingularities.openkeyboard.data.shouldSplit
 import com.blacksingularities.openkeyboard.dict.Pt
 import com.blacksingularities.openkeyboard.dict.normalizeKey
 import com.blacksingularities.openkeyboard.i18n.tr
@@ -176,7 +176,7 @@ fun KeyGrid(
     val upper = shift != ShiftState.OFF
     var trail by remember { mutableStateOf<List<Offset>>(emptyList()) }
     val split = layout.mode != KeyboardMode.NUMBER && layout.mode != KeyboardMode.PHONE &&
-        (settings.split == SplitMode.ALWAYS || (settings.split == SplitMode.LANDSCAPE && landscape))
+        shouldSplit(settings.split, landscape, androidx.compose.ui.platform.LocalConfiguration.current.screenWidthDp)
 
     BoxWithConstraints(modifier.fillMaxWidth().height(rowH * rowFactors(layout).sum())) {
         val wPx = constraints.maxWidth.toFloat()

@@ -1,6 +1,7 @@
 package com.blacksingularities.openkeyboard
 
 import android.app.Application
+import com.blacksingularities.openkeyboard.data.CrashLog
 import com.blacksingularities.openkeyboard.data.Prefs
 import com.blacksingularities.openkeyboard.dict.Dictionaries
 import com.blacksingularities.openkeyboard.dict.UserModel
@@ -15,6 +16,7 @@ import kotlinx.coroutines.launch
 class OpenKeyboardApp : Application() {
     override fun onCreate() {
         super.onCreate()
+        CrashLog.install(this)
         Prefs.init(this)
         UserModel.init(this)
         ClipboardHistory.init(this)

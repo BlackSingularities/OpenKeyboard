@@ -69,6 +69,9 @@ import androidx.compose.material.icons.rounded.SystemUpdate
 import androidx.compose.material.icons.rounded.Timer
 import androidx.compose.material.icons.rounded.TouchApp
 import androidx.compose.material.icons.rounded.Translate
+import androidx.compose.material.icons.rounded.Sync
+import androidx.compose.material.icons.rounded.SyncDisabled
+import androidx.compose.material.icons.rounded.CloudOff
 import androidx.compose.material.icons.rounded.Tune
 import androidx.compose.material.icons.rounded.Vibration
 import androidx.compose.material.icons.rounded.VisibilityOff
@@ -125,6 +128,8 @@ import com.blacksingularities.openkeyboard.ui.components.StatTile
 import com.blacksingularities.openkeyboard.ui.components.Tile
 import com.blacksingularities.openkeyboard.ui.components.TileGrid
 import com.blacksingularities.openkeyboard.ui.theme.Palette
+import com.blacksingularities.openkeyboard.data.CrashLog
+import androidx.compose.runtime.collectAsState
 
 @Composable
 fun AppRoot(vm: AppViewModel) {
@@ -180,6 +185,7 @@ private fun HomeScreen(vm: AppViewModel) {
                 Column(Modifier.widthIn(max = 720.dp).fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Header(vm)
                     UpdateBanner(vm)
+                    CrashCard()
                     SetupCard(vm)
                     TryField()
                     Stats(vm)
@@ -255,6 +261,40 @@ private fun VoiceGroup(vm: AppViewModel) {
             Tile(Icons.Rounded.Mic, tr("Wielka litera w dyktowaniu"), tr("Dyktowany tekst na początku zdania zaczyna się wielką literą"), s.voiceAutoPunct) { v -> vm.update { it.copy(voiceAutoPunct = v) } },
         ),
     )
+}
+
+/**
+ * Tryb awaryjny i ostatni raport awarii. Raport zostaje w telefonie – udostępnia go tylko
+ * użytkownik, wybierając aplikację (np. pocztę).
+ */
+@Composable
+private fun CrashCard() {
+    val sys = LocalSystem.current
+    val safe by CrashLog.safeMode.collectAsState()
+    val report by CrashLog.lastReport.collectAsState()
+    if (!safe && report == null) return
+    Group(if (safe) tr("Tryb awaryjny") else tr("Klawiatura uległa awarii")) {
+        Text(
+            if (safe) tr("Klawiatura kilka razy z rzędu przestała działać, więc działa teraz na ustawieniach domyślnych. Twoje ustawienia są zapisane i wrócą po wyjściu z trybu awaryjnego.")
+            else tr("Raport awarii jest zapisany tylko w telefonie. Możesz go wysłać autorowi, aby pomóc naprawić błąd."),
+            color = Palette.TextDim,
+            fontSize = 12.sp,
+            lineHeight = 16.sp,
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+        )
+        Row(
+            Modifier.fillMaxWidth().padding(horizontal = 10.dp, vertical = 6.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            if (safe) PillButton(tr("Przywróć moje ustawienia")) { Prefs.exitSafeMode() }
+            report?.let { r ->
+                PillButton(tr("Wyślij raport"), primary = !safe) {
+                    sys.shareText(r + "\n\n" + tr("Opisz, co działo się przed awarią:") + "\n")
+                }
+                PillButton(tr("Usuń"), primary = false) { CrashLog.clearReports() }
+            }
+        }
+    }
 }
 
 /** Kroki konfiguracji: włączenie klawiatury, wybór domyślnej, mikrofon, powiadomienia. */
@@ -449,8 +489,8 @@ private fun ColumnScope.SettingsContent(vm: AppViewModel) {
             tr("Klawiatura dzielona"),
             SplitMode.entries,
             s.split,
-            { when (it) { SplitMode.OFF -> tr("Nigdy"); SplitMode.LANDSCAPE -> tr("W poziomie"); SplitMode.ALWAYS -> tr("Zawsze") } },
-            short = { when (it) { SplitMode.OFF -> tr("Wył."); SplitMode.LANDSCAPE -> tr("Poziom"); SplitMode.ALWAYS -> tr("Zawsze") } },
+            { when (it) { SplitMode.OFF -> tr("Nigdy"); SplitMode.LANDSCAPE -> tr("W poziomie"); SplitMode.WIDE -> tr("Szeroki ekran – tablet, telefon składany i w poziomie"); SplitMode.ALWAYS -> tr("Zawsze") } },
+            short = { when (it) { SplitMode.OFF -> tr("Wył."); SplitMode.LANDSCAPE -> tr("Poziom"); SplitMode.WIDE -> tr("Szeroki"); SplitMode.ALWAYS -> tr("Zawsze") } },
         ) { v -> set { it.copy(split = v) } }
         SliderRow(Icons.Rounded.VerticalSplit, tr("Przerwa w środku"), s.splitGap, 5..50, 1, { "${it / 10f}" }, enabled = s.split != SplitMode.OFF, requires = needs(tr("Klawiatura dzielona"))) { v -> set { it.copy(splitGap = v) } }
     }
@@ -461,6 +501,8 @@ private fun ColumnScope.SettingsContent(vm: AppViewModel) {
             Tile(Icons.Rounded.Abc, tr("Przecinek"), tr("Klawisz przecinka obok spacji"), s.commaKey) { v -> set { it.copy(commaKey = v) } },
             Tile(Icons.Rounded.Functions, tr("Symbole na literach"), tr("Jak w SwiftKey: przytrzymaj Q – %, A – @, S – #, K – ( … Symbol widać w rogu klawisza"), s.symbolKeys) { v -> set { it.copy(symbolKeys = v) } },
             Tile(Icons.Rounded.PictureInPicture, tr("Pływająca"), tr("Klawiatura jako przesuwana nakładka nad aplikacją"), s.floating) { v -> set { it.copy(floating = v) } },
+            Tile(Icons.Rounded.Keyboard, tr("Podpowiedzi z fizycznej klawiatury"), tr("Autokorekta i podpowiedzi także przy pisaniu na klawiaturze Bluetooth lub w etui; Ctrl+Spacja zmienia język"), s.hardwareSuggestions) { v -> set { it.copy(hardwareSuggestions = v) } },
+            Tile(Icons.Rounded.KeyboardHide, tr("Chowaj przy fizycznej"), tr("Bez klawiszy na ekranie, gdy podłączona jest fizyczna klawiatura"), s.hideWithHardware) { v -> set { it.copy(hideWithHardware = v) } },
         ),
     )
     Group(null) {
@@ -574,6 +616,12 @@ private fun ColumnScope.SettingsContent(vm: AppViewModel) {
     Group(null) {
         ActionRow(Icons.Rounded.Backup, tr("Eksportuj"), tr("Ustawienia, wyuczone słowa, skróty i przypięte wpisy schowka do pliku JSON")) { sys.exportBackup() }
         ActionRow(Icons.Rounded.Restore, tr("Importuj"), tr("Przywróć z pliku kopii")) { sys.importBackup() }
+        if (s.syncFolder.isEmpty()) {
+            ActionRow(Icons.Rounded.Sync, tr("Synchronizacja przez folder"), tr("Wybierz folder synchronizowany między telefonami (np. Syncthing, Nextcloud) – wyuczone słowa i skróty będą się scalać")) { sys.pickSyncFolder() }
+        } else {
+            ActionRow(Icons.Rounded.Sync, if (vm.syncing) tr("Synchronizowanie…") else tr("Synchronizuj teraz"), tr("Wyuczone słowa i skróty scalane z innymi urządzeniami w wybranym folderze; także przy każdym otwarciu aplikacji"), enabled = !vm.syncing) { vm.syncNow() }
+            ActionRow(Icons.Rounded.SyncDisabled, tr("Wyłącz synchronizację"), null) { vm.clearSyncFolder() }
+        }
         ActionRow(Icons.Rounded.BarChart, tr("Statystyki i mapa cieplna"), tr("Tempo pisania, najczęstsze słowa i które klawisze naciskasz najczęściej")) { vm.sheet = Sheet.STATS }
         ActionRow(Icons.Rounded.BarChart, tr("Zeruj statystyki"), null) {
             confirm = tr("Wyzerować statystyki pisania?") to { UserModel.resetStats() }
@@ -599,7 +647,8 @@ private fun ColumnScope.SettingsContent(vm: AppViewModel) {
     }
     TileGrid(
         listOf(
-            Tile(Icons.Rounded.SystemUpdate, tr("Aktualizacje"), tr("Sprawdzaj nowe wersje przy uruchomieniu"), s.autoUpdate) { v -> set { it.copy(autoUpdate = v) } },
+            Tile(Icons.Rounded.SystemUpdate, tr("Aktualizacje"), tr("Sprawdzaj nowe wersje przy uruchomieniu"), s.autoUpdate, enabled = !s.offline, requires = tr("Wyłączone w trybie offline")) { v -> set { it.copy(autoUpdate = v) } },
+            Tile(Icons.Rounded.CloudOff, tr("Całkowicie offline"), tr("Żadnych połączeń z internetem: bez pobierania słowników i sprawdzania aktualizacji"), s.offline) { v -> set { it.copy(offline = v) } },
             Tile(Icons.Rounded.Notifications, tr("Powiadomienia"), tr("Zezwól na powiadomienie po aktualizacji"), false) { sys.requestNotifications() },
         ),
     )

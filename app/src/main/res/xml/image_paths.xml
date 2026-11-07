@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Obrazy wklejane do aplikacji (commitContent) – tylko ten katalog w pamięci podręcznej. -->
+<paths>
+    <cache-path name="images" path="shared_images/" />
+</paths>

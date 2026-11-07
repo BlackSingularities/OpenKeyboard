@@ -1,6 +1,10 @@
 package com.blacksingularities.openkeyboard.ime
 
+import android.content.res.Configuration
 import android.graphics.Rect
+import android.view.InputDevice
+import android.view.KeyCharacterMap
+import android.view.KeyEvent
 import android.inputmethodservice.InputMethodService
 import android.view.Gravity
 import android.view.View
@@ -111,10 +115,75 @@ class OpenKeyboardService : InputMethodService(), LifecycleOwner, ViewModelStore
 
     override fun onEvaluateFullscreenMode(): Boolean = false
 
-    /** Klawiatura ekranowa także przy podłączonej fizycznej (emulator, etui z klawiaturą). */
+    /** Podłączona i rozłożona fizyczna klawiatura (Bluetooth, tablet z etui, Chromebook). */
+    private val hardwareKeyboard: Boolean
+        get() {
+            val c = resources.configuration
+            return c.keyboard != Configuration.KEYBOARD_NOKEYS && c.hardKeyboardHidden == Configuration.HARDKEYBOARDHIDDEN_NO
+        }
+
+    /**
+     * Klawiatura ekranowa domyślnie także przy fizycznej (emulator, etui z klawiaturą) – z paskiem
+     * podpowiedzi. Można ją wtedy chować w ustawieniach.
+     */
     override fun onEvaluateInputViewShown(): Boolean {
         super.onEvaluateInputViewShown()
+        return !(hardwareKeyboard && Prefs.current.hideWithHardware)
+    }
+
+    override fun onConfigurationChanged(newConfig: Configuration) {
+        super.onConfigurationChanged(newConfig)
+        updateInputViewShown()
+    }
+
+    /**
+     * Fizyczna klawiatura. Ctrl+Spacja zmienia język pisania. Gdy klawisze
+     * ekranowe są widoczne, litery, spacja, Backspace i Enter przechodzą przez silnik klawiatury –
+     * działają podpowiedzi, autokorekta i nauka słów. Skróty z Ctrl/Alt/Meta i klawisze systemowe
+     * idą prosto do aplikacji.
+     */
+    override fun onKeyDown(keyCode: Int, event: KeyEvent): Boolean {
+        if (destroyed || !fromHardware(event)) return super.onKeyDown(keyCode, event)
+        if (isLanguageShortcut(keyCode, event)) {
+            if (event.repeatCount == 0) controller.nextLanguage()
+            return true
+        }
+        if (!routeToEngine(event)) return super.onKeyDown(keyCode, event)
+        when (keyCode) {
+            KeyEvent.KEYCODE_DEL -> controller.onDelete(repeat = event.repeatCount > 0)
+            KeyEvent.KEYCODE_ENTER, KeyEvent.KEYCODE_NUMPAD_ENTER -> controller.onEnter()
+            KeyEvent.KEYCODE_SPACE -> controller.onSpace()
+            else -> {
+                val ch = event.getUnicodeChar(event.metaState)
+                if (ch == 0 || ch and KeyCharacterMap.COMBINING_ACCENT != 0) return super.onKeyDown(keyCode, event)
+                controller.onText(String(Character.toChars(ch)))
+            }
+        }
         return true
+    }
+
+    override fun onKeyUp(keyCode: Int, event: KeyEvent): Boolean {
+        if (destroyed || !fromHardware(event)) return super.onKeyUp(keyCode, event)
+        if (isLanguageShortcut(keyCode, event)) return true
+        if (routeToEngine(event) && handledByEngine(keyCode, event)) return true
+        return super.onKeyUp(keyCode, event)
+    }
+
+    private fun isLanguageShortcut(keyCode: Int, event: KeyEvent): Boolean =
+        keyCode == KeyEvent.KEYCODE_SPACE && event.isCtrlPressed && !event.isAltPressed && !event.isMetaPressed
+
+    private fun fromHardware(event: KeyEvent): Boolean =
+        event.deviceId != KeyCharacterMap.VIRTUAL_KEYBOARD && !event.isSystem && event.source and InputDevice.SOURCE_KEYBOARD != 0
+
+    /** Czy klawisz ma przejść przez silnik (podpowiedzi). Tylko bez modyfikatorów i przy widocznym pasku. */
+    private fun routeToEngine(event: KeyEvent): Boolean =
+        Prefs.current.hardwareSuggestions && isInputViewShown && currentInputConnection != null &&
+            !event.isCtrlPressed && !event.isAltPressed && !event.isMetaPressed &&
+            controller.wordSuggestions
+
+    private fun handledByEngine(keyCode: Int, event: KeyEvent): Boolean = when (keyCode) {
+        KeyEvent.KEYCODE_DEL, KeyEvent.KEYCODE_ENTER, KeyEvent.KEYCODE_NUMPAD_ENTER, KeyEvent.KEYCODE_SPACE -> true
+        else -> event.getUnicodeChar(event.metaState).let { it != 0 && it and KeyCharacterMap.COMBINING_ACCENT == 0 }
     }
 
     override fun onStartInputView(info: EditorInfo, restarting: Boolean) {

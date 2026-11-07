@@ -1,6 +1,7 @@
 package com.blacksingularities.openkeyboard.update
 
 import com.blacksingularities.openkeyboard.i18n.tr
+import com.blacksingularities.openkeyboard.data.Prefs
 import android.app.PendingIntent
 import android.content.BroadcastReceiver
 import android.content.Context
@@ -79,6 +80,7 @@ object UpdateManager {
 
     /** Zapytanie GET (GitHub API) – tekst odpowiedzi. */
     fun httpGet(url: String): String {
+        if (Prefs.current.offline) error(tr("Tryb offline – połączenia z internetem są wyłączone"))
         val conn = (URL(url).openConnection() as HttpURLConnection).apply {
             connectTimeout = 10_000
             readTimeout = 15_000
@@ -94,6 +96,7 @@ object UpdateManager {
     }
 
     suspend fun download(context: Context, info: ReleaseInfo, onProgress: (Float) -> Unit): File = withContext(Dispatchers.IO) {
+        if (Prefs.current.offline) error(tr("Tryb offline – połączenia z internetem są wyłączone"))
         val dir = File(context.cacheDir, "updates").apply { mkdirs() }
         dir.listFiles()?.forEach { it.delete() }
         val target = File(dir, "OpenKeyboard-${info.version}.apk")

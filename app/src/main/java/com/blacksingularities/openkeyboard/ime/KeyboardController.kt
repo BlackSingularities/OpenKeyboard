@@ -1,5 +1,6 @@
 package com.blacksingularities.openkeyboard.ime
 
+import com.blacksingularities.openkeyboard.features.ImagePaste
 import android.os.SystemClock
 import android.text.InputType
 import android.view.KeyEvent
@@ -1221,6 +1222,21 @@ class KeyboardController(val service: OpenKeyboardService) {
         ic?.commitText(e, 1)
         UserModel.addEmojiRecent(e)
         selfEdit()
+    }
+
+    /** Obraz ze schowka, który można wkleić do bieżącego pola (pole przyjmuje obrazy). */
+    fun pastableImage(): ImagePaste.ClipImage? {
+        if (incognito) return null
+        val img = ImagePaste.fromClipboard(service) ?: return null
+        return img.takeIf { ImagePaste.accepts(editorInfo, it.mime) }
+    }
+
+    fun pasteImage(image: ImagePaste.ClipImage) {
+        val ic = ic ?: return
+        val info = editorInfo ?: return
+        commitComposing(autocorrect = false)
+        val ok = runCatching { ImagePaste.commit(service, ic, info, image) }.getOrDefault(false)
+        if (!ok) showToast(tr("Ta aplikacja nie przyjęła obrazu"))
     }
 
     fun commitRaw(text: String) {

@@ -16,7 +16,8 @@
 
     <application
         android:name=".OpenKeyboardApp"
-        android:allowBackup="true"
+        android:allowBackup="false"
+        android:dataExtractionRules="@xml/data_extraction_rules"
         android:enableOnBackInvokedCallback="true"
         android:hardwareAccelerated="true"
         android:icon="@mipmap/ic_launcher"
@@ -64,6 +65,17 @@
                 android:name="android.view.textservice.scs"
                 android:resource="@xml/spellchecker" />
         </service>
+
+        <!-- Obrazy ze schowka wklejane do aplikacji (commitContent). -->
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.images"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/image_paths" />
+        </provider>
 
         <receiver
             android:name=".update.UpdateReceiver"

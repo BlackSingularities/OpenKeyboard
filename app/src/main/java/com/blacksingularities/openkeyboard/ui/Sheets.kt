@@ -139,6 +139,8 @@ private fun LanguageRow(vm: AppViewModel, code: String, state: DictState?, enabl
     val s = vm.settings
     val l = Languages.get(code)
     val active = s.activeLanguage == code
+    var editLayout by remember { mutableStateOf(false) }
+    if (editLayout) CustomLayoutDialog(vm, code) { editLayout = false }
     Column(Modifier.fillMaxWidth().padding(horizontal = 10.dp, vertical = 6.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Box(
@@ -187,6 +189,7 @@ private fun LanguageRow(vm: AppViewModel, code: String, state: DictState?, enabl
                         vm.update { st -> st.copy(layoutOverride = if (id == l.layout) st.layoutOverride - code else st.layoutOverride + (code to id)) }
                     }
                 }
+                Chip(tr("Własny…"), cur == com.blacksingularities.openkeyboard.keyboard.CUSTOM_LAYOUT) { editLayout = true }
                 // Wiele naraz: wybór decyduje tylko o układzie liter wspólnym dla języków tego alfabetu.
                 if (!active) Chip(if (s.multilingual) tr("Użyj tego układu") else tr("Ustaw bieżący"), false) { vm.update { it.copy(activeLanguage = code) } }
             }
@@ -569,14 +572,13 @@ fun AboutSheet(vm: AppViewModel) {
 
             ActionRow(Icons.Rounded.Mic, tr("Rozpoznawanie mowy systemu"), tr("Dyktowanie korzysta z usługi zainstalowanej w telefonie")) {}
         }
-        Group(tr("Prywatność")) {
-            Text(
-                tr("Wszystko, czego klawiatura się uczy (słowa, pary słów, schowek, statystyki), zostaje na telefonie. Aplikacja łączy się z internetem tylko, by pobrać słownik albo sprawdzić aktualizację."),
-                color = Palette.TextDim,
-                fontSize = 12.sp,
-                lineHeight = 17.sp,
-                modifier = Modifier.padding(14.dp),
-            )
+        Group(tr("Polityka prywatności")) {
+            for ((title, body) in privacyPolicy()) {
+                Column(Modifier.padding(horizontal = 14.dp, vertical = 8.dp)) {
+                    Text(title, color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+                    Text(body, color = Palette.TextDim, fontSize = 12.sp, lineHeight = 17.sp)
+                }
+            }
         }
         Text(
             tr("Słowniki zajmują {0} KB", Dictionaries.storageBytes() / 1024),
@@ -981,5 +983,63 @@ private fun AccentPicker(vm: AppViewModel) {
             modifier = Modifier.scale(0.82f),
             colors = SwitchDefaults.colors(checkedTrackColor = Palette.Amber, checkedThumbColor = Palette.Ink),
         )
+    }
+}
+
+/** Polityka prywatności: co klawiatura przechowuje, z czym się łączy i do czego służą uprawnienia. */
+internal fun privacyPolicy(): List<Pair<String, String>> = listOf(
+    tr("Bez zbierania danych") to tr("OpenKeyboard nie ma reklam, analityki ani kont. Nie wysyła tego, co piszesz, nikomu – ani autorowi, ani firmom trzecim."),
+    tr("Co zostaje w telefonie") to tr("Wyuczone słowa i pary słów, skróty, historia schowka, statystyki pisania, raporty awarii i ustawienia. Są wyłączone z kopii zapasowej w chmurze i przenoszenia na inny telefon – przeniesiesz je tylko własnym plikiem kopii."),
+    tr("Połączenia z internetem") to tr("Tylko dwa: pobranie słownika języka, gdy o nie poprosisz (listy słów FrequencyWords), i sprawdzenie aktualizacji (redzikowski.com). Wysyłana jest wyłącznie wersja aplikacji. Opcja „Całkowicie offline” wyłącza oba."),
+    tr("Uprawnienia") to tr("Mikrofon – tylko dla dyktowania, dźwięk rozpoznaje usługa mowy telefonu. Instalowanie aplikacji – tylko dla aktualizacji OpenKeyboard. Powiadomienia – informacja o zainstalowanej aktualizacji. Wibracja – reakcja klawiszy."),
+    tr("Pola haseł") to tr("W polach haseł i w trybie prywatnym przeglądarek klawiatura niczego nie zapamiętuje. Dane poufne nie trafiają do historii schowka."),
+    tr("Raporty awarii") to tr("Zapisywane tylko w telefonie. Wysyłasz je sam, wybierając aplikację – dopiero wtedy ktokolwiek je zobaczy."),
+    tr("Kontakt") to "kontakt@redzikowski.com",
+)
+
+/**
+ * Edytor własnego układu liter: trzy rzędy znaków. Start od bieżącego układu języka; znaki pod
+ * przytrzymaniem (ogonki) dochodzą automatycznie z języka.
+ */
+@Composable
+private fun CustomLayoutDialog(vm: AppViewModel, code: String, onClose: () -> Unit) {
+    val s = vm.settings
+    val l = Languages.get(code)
+    val start = s.customRows[code] ?: com.blacksingularities.openkeyboard.keyboard.Layouts.rowsFor(s.layoutOverride[code] ?: l.layout)
+    var r1 by remember { mutableStateOf(start[0]) }
+    var r2 by remember { mutableStateOf(start[1]) }
+    var r3 by remember { mutableStateOf(start[2]) }
+    val rows = listOf(r1, r2, r3).map { it.trim().lowercase() }
+    val valid = com.blacksingularities.openkeyboard.keyboard.validCustomRows(rows)
+    com.blacksingularities.openkeyboard.ui.components.DarkDialog(
+        title = tr("Własny układ – {0}", l.native),
+        onDismiss = onClose,
+        buttons = {
+            if (s.customRows.containsKey(code)) {
+                PillButton(tr("Usuń"), danger = true) {
+                    vm.update { it.copy(customRows = it.customRows - code, layoutOverride = it.layoutOverride - code) }
+                    onClose()
+                }
+            }
+            PillButton(tr("Anuluj"), primary = false) { onClose() }
+            PillButton(tr("Zapisz"), enabled = valid) {
+                vm.update {
+                    it.copy(
+                        customRows = it.customRows + (code to rows),
+                        layoutOverride = it.layoutOverride + (code to com.blacksingularities.openkeyboard.keyboard.CUSTOM_LAYOUT),
+                    )
+                }
+                onClose()
+            }
+        },
+    ) {
+        Text(
+            tr("Wpisz litery każdego rzędu od lewej. Shift i Backspace są dodawane w trzecim rzędzie automatycznie, a ogonki zostają pod przytrzymaniem."),
+            color = Palette.TextDim, fontSize = 12.sp, lineHeight = 16.sp,
+        )
+        DarkField(r1, { r1 = it }, tr("Rząd 1"))
+        DarkField(r2, { r2 = it }, tr("Rząd 2"))
+        DarkField(r3, { r3 = it }, tr("Rząd 3"))
+        if (!valid) Text(tr("Każdy rząd: 1–12 znaków, bez spacji; litery nie mogą się powtarzać."), color = Palette.Record, fontSize = 12.sp)
     }
 }

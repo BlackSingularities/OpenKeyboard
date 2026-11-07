@@ -4,6 +4,7 @@ import android.content.Context
 import com.blacksingularities.openkeyboard.BuildConfig
 import com.blacksingularities.openkeyboard.data.Languages
 import com.blacksingularities.openkeyboard.i18n.tr
+import com.blacksingularities.openkeyboard.data.Prefs
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -113,6 +114,10 @@ object Dictionaries {
     fun download(code: String) {
         val lang = Languages.get(code)
         if (lang.dict.isEmpty()) return
+        if (Prefs.current.offline) {
+            setState(code, DictState.Failed(tr("Tryb offline – połączenia z internetem są wyłączone")))
+            return
+        }
         scope.launch {
             setState(code, DictState.Downloading(0f))
             runCatching {

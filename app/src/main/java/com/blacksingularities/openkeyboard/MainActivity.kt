@@ -33,6 +33,9 @@ class SystemActions(
     val pickBackground: () -> Unit,
     val openAppSettings: () -> Unit = {},
     val openVoiceSettings: () -> Unit = {},
+    /** Udostępnienie tekstu (raport awarii) – użytkownik sam wybiera, dokąd. */
+    val shareText: (String) -> Unit = {},
+    val pickSyncFolder: () -> Unit = {},
 )
 
 val LocalSystem = staticCompositionLocalOf<SystemActions> { error("Brak SystemActions") }
@@ -67,6 +70,14 @@ class MainActivity : ComponentActivity() {
             val background = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
                 if (uri != null) vm.setBackground(uri)
             }
+            val syncFolder = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocumentTree()) { uri ->
+                if (uri != null) {
+                    runCatching {
+                        contentResolver.takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION)
+                    }
+                    vm.setSyncFolder(uri)
+                }
+            }
             val actions = SystemActions(
                 openImeSettings = { runCatching { startActivity(Intent(Settings.ACTION_INPUT_METHOD_SETTINGS)) } },
                 showImePicker = { getSystemService(InputMethodManager::class.java)?.showInputMethodPicker() },
@@ -86,6 +97,13 @@ class MainActivity : ComponentActivity() {
                 importBackup = { import.launch(arrayOf("application/json", "text/plain", "*/*")) },
                 openUrl = { url -> runCatching { startActivity(Intent(Intent.ACTION_VIEW, android.net.Uri.parse(url))) } },
                 pickBackground = { background.launch("image/*") },
+                pickSyncFolder = { syncFolder.launch(null) },
+                shareText = { text ->
+                    val send = Intent(Intent.ACTION_SEND).setType("text/plain")
+                        .putExtra(Intent.EXTRA_SUBJECT, "OpenKeyboard – raport awarii")
+                        .putExtra(Intent.EXTRA_TEXT, text)
+                    runCatching { startActivity(Intent.createChooser(send, null)) }
+                },
             )
             androidx.compose.runtime.LaunchedEffect(vm.requestMicOnStart) {
                 if (vm.requestMicOnStart) {

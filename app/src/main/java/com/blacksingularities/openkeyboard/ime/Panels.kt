@@ -50,6 +50,7 @@ import androidx.compose.material.icons.rounded.EmojiSymbols
 import androidx.compose.material.icons.rounded.EmojiTransportation
 import androidx.compose.material.icons.rounded.FirstPage
 import androidx.compose.material.icons.rounded.History
+import androidx.compose.material.icons.rounded.Image
 import androidx.compose.material.icons.rounded.Keyboard
 import androidx.compose.material.icons.rounded.KeyboardArrowDown
 import androidx.compose.material.icons.rounded.KeyboardArrowUp
@@ -320,6 +321,8 @@ fun ClipboardPanel(c: KeyboardController, height: Dp) {
     val colors = LocalKb.current
     val items by ClipboardHistory.items.collectAsState()
     var selected by remember { mutableStateOf<Clip?>(null) }
+    // Obraz w schowku – sprawdzany przy otwarciu panelu i po każdej zmianie listy.
+    val image = remember(items) { c.pastableImage() }
     Column(Modifier.fillMaxWidth().height(height)) {
         if (!c.settings.clipboardHistory) {
             Box(Modifier.weight(1f).fillMaxWidth().padding(20.dp), contentAlignment = Alignment.Center) {
@@ -381,6 +384,12 @@ fun ClipboardPanel(c: KeyboardController, height: Dp) {
         Row(Modifier.fillMaxWidth().height(44.dp).padding(horizontal = 6.dp), verticalAlignment = Alignment.CenterVertically) {
             PanelTextButton("ABC") { c.closePanel() }
             Spacer(Modifier.weight(1f))
+            if (image != null) {
+                PanelTextButton(tr("Wklej obraz"), icon = Icons.Rounded.Image, primary = true) {
+                    c.feedback.key()
+                    c.pasteImage(image)
+                }
+            }
             if (items.any { !it.pinned }) {
                 PanelTextButton(tr("Wyczyść (bez przypiętych)"), icon = Icons.Rounded.DeleteSweep) { ClipboardHistory.clear() }
             }

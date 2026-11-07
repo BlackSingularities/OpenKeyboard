@@ -39,8 +39,21 @@ enum class GestureAction { NONE, CURSOR, LANGUAGE, HIDE, DELETE_WORD, SHIFT, EMO
 /** Czcionka napisów na klawiszach. */
 enum class KeyFont { DEFAULT, SANS, SERIF, MONO, CONDENSED }
 
-/** Dzielenie klawiatury na dwie połówki (wygodne kciukami na szerokim ekranie). */
-enum class SplitMode { OFF, LANDSCAPE, ALWAYS }
+/**
+ * Dzielenie klawiatury na dwie połówki (wygodne kciukami na szerokim ekranie).
+ * WIDE – na szerokich ekranach: tablet, rozłożony telefon składany i każdy telefon w poziomie.
+ */
+enum class SplitMode { OFF, LANDSCAPE, WIDE, ALWAYS }
+
+/** Szerokość ekranu (dp), od której klawiatura w trybie [SplitMode.WIDE] się dzieli. */
+const val WIDE_SCREEN_DP = 600
+
+fun shouldSplit(mode: SplitMode, landscape: Boolean, screenWidthDp: Int): Boolean = when (mode) {
+    SplitMode.OFF -> false
+    SplitMode.LANDSCAPE -> landscape
+    SplitMode.WIDE -> landscape || screenWidthDp >= WIDE_SCREEN_DP
+    SplitMode.ALWAYS -> true
+}
 
 @Serializable
 data class KeyboardSettings(
@@ -52,6 +65,8 @@ data class KeyboardSettings(
     val multilingual: Boolean = true,
     /** Własny układ dla języka (np. „qwertz” dla polskiego). */
     val layoutOverride: Map<String, String> = emptyMap(),
+    /** Własne układy liter (język → 3 rzędy), używane przy layoutOverride = „custom”. */
+    val customRows: Map<String, List<String>> = emptyMap(),
 
     // Układ
     val numberRow: Boolean = false,
@@ -71,7 +86,7 @@ data class KeyboardSettings(
     val longPressMs: Int = 300,
     val floating: Boolean = false,
     val floatingScale: Int = 85,
-    val split: SplitMode = SplitMode.LANDSCAPE,
+    val split: SplitMode = SplitMode.WIDE,
     val splitGap: Int = 22,
 
     // Pisanie i podpowiedzi
@@ -112,6 +127,10 @@ data class KeyboardSettings(
     val autoPair: Boolean = false,
     /** Przeliczanie jednostek w pasku („5 km” → „3,11 mi”). */
     val unitConvert: Boolean = true,
+    /** Fizyczna klawiatura: podpowiedzi i autokorekta także dla tekstu pisanego na niej. */
+    val hardwareSuggestions: Boolean = true,
+    /** Fizyczna klawiatura: chowaj klawisze ekranowe (Ctrl+Spacja nadal zmienia język). */
+    val hideWithHardware: Boolean = false,
 
     // Wygląd
     val theme: String = "black",
@@ -175,6 +194,10 @@ data class KeyboardSettings(
     // Ogólne
     val appLanguage: AppLanguage = AppLanguage.SYSTEM,
     val autoUpdate: Boolean = true,
+    /** Folder synchronizacji (adres drzewa SAF) – np. folder Syncthing lub Nextcloud. Pusty = wyłączona. */
+    val syncFolder: String = "",
+    /** Całkowicie offline: żadnych połączeń (pobieranie słowników, sprawdzanie aktualizacji). */
+    val offline: Boolean = false,
     val onboardingDone: Boolean = false,
 )
 
@@ -184,6 +207,9 @@ object Prefs {
     private const val KEY = "settings"
     private val json = Json { ignoreUnknownKeys = true; encodeDefaults = false }
     private lateinit var appContext: Context
+    /** Zapisane ustawienia użytkownika. */
+    private var stored = KeyboardSettings()
+    /** Ustawienia w użyciu – w trybie awaryjnym domyślne, inaczej [stored]. */
     private val state = MutableStateFlow(KeyboardSettings())
     val flow: StateFlow<KeyboardSettings> get() = state
     val current: KeyboardSettings get() = state.value
@@ -191,7 +217,30 @@ object Prefs {
     fun init(context: Context) {
         appContext = context.applicationContext
         val raw = prefs().getString(KEY, null)
-        state.value = raw?.let { runCatching { decode(it) }.getOrNull() } ?: firstRun()
+        stored = raw?.let { runCatching { decode(it) }.getOrNull() } ?: firstRun()
+        state.value = effective()
+    }
+
+    /**
+     * Tryb awaryjny ([CrashLog]): domyślne ustawienia z zachowaniem języków i języka aplikacji,
+     * bez dodatków, które najczęściej mogą zawieść (gesty, obraz tła, tryb pływający).
+     */
+    private fun effective(): KeyboardSettings =
+        if (!CrashLog.safeMode.value) stored
+        else KeyboardSettings(
+            languages = stored.languages,
+            activeLanguage = stored.activeLanguage,
+            appLanguage = stored.appLanguage,
+            onboardingDone = stored.onboardingDone,
+            glideTyping = false,
+            floating = false,
+            bgImage = false,
+        )
+
+    /** Wyjście z trybu awaryjnego – wracają zapisane ustawienia. */
+    fun exitSafeMode() {
+        CrashLog.exitSafeMode()
+        state.value = effective()
     }
 
     /** Pierwsze uruchomienie: języki pisania wg języków systemu. */
@@ -204,13 +253,16 @@ object Prefs {
     private fun prefs() = appContext.getSharedPreferences(FILE, Context.MODE_PRIVATE)
 
     fun update(transform: (KeyboardSettings) -> KeyboardSettings) {
-        val next = transform(state.value)
-        if (next == state.value) return
-        state.value = next
+        val next = transform(stored)
+        if (next == stored) return
+        stored = next
+        // W trybie awaryjnym zmiana (np. język spacją) trafia do zapisanych ustawień i do bieżących
+        // ustawień domyślnych – tryb kończy się dopiero przyciskiem w aplikacji.
+        state.value = if (CrashLog.safeMode.value) transform(state.value) else next
         prefs().edit().putString(KEY, json.encodeToString(KeyboardSettings.serializer(), next)).apply()
     }
 
-    fun exportJson(): String = json.encodeToString(KeyboardSettings.serializer(), state.value)
+    fun exportJson(): String = json.encodeToString(KeyboardSettings.serializer(), stored)
 
     /** Usunięte wartości (np. przycisk tłumacza z 1.2) nie mogą unieważnić całych ustawień. */
     internal fun decode(raw: String): KeyboardSettings {
