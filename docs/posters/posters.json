@@ -1,0 +1,23 @@
+{
+  "slug": "openkeyboard",
+  "name": "OpenKeyboard",
+  "label": "wielojęzyczna klawiatura",
+  "icon": "icon.png",
+  "url": "https://redzikowski.com/portfolio/openkeyboard",
+  "posters": [
+    {
+      "platform": "android",
+      "file": "android.png",
+      "title": "Klawiatura, która *uczy się lokalnie*",
+      "lead": "Podpowiedzi z kilku języków naraz, autokorekta i pisanie gestem. Słownik uczy się w telefonie i nigdzie go nie wysyła.",
+      "shots": [
+        { "src": "../screenshots/android/01-pisanie.png", "caption": "Podpowiedzi" },
+        { "src": "../screenshots/android/02-emoji.png", "caption": "Emoji" },
+        { "src": "../screenshots/android/03-motywy.png", "caption": "Motywy" },
+        { "src": "../screenshots/android/04-jezyki.png", "caption": "Języki" }
+      ],
+      "features": ["30 języków naraz", "pisanie gestem", "autokorekta", "schowek i kalkulator w pasku", "18 motywów", "polskie znaki w rogu klawiszy"],
+      "meta": "Android 10 lub nowszy"
+    }
+  ]
+}

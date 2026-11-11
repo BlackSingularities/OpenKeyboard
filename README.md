@@ -1,5 +1,13 @@
 # OpenKeyboard
 
+<!-- posters:start -->
+<p align="center">
+  <img src="docs/posters/android.png" alt="OpenKeyboard – Android" width="460">
+</p>
+
+<p align="center"><a href="https://redzikowski.com/portfolio/openkeyboard">redzikowski.com/portfolio/openkeyboard</a></p>
+<!-- posters:end -->
+
 **Otwarta, wielojęzyczna klawiatura dla Androida** – domyślnie czarna i minimalistyczna, z inteligentnymi podpowiedziami, autokorektą i mnóstwem narzędzi. Bez reklam i śledzenia: wszystko, czego się uczy, zostaje na telefonie.
 
 [![Build & Release](../../actions/workflows/android.yml/badge.svg)](../../actions/workflows/android.yml)
